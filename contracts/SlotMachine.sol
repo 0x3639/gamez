@@ -90,7 +90,7 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
             if (a == SYMBOL_SEVEN) return 200;
             return 80;
         }
-        if (a == b || b == c || a == c) return 13;
+        if (a == b || b == c || a == c) return 12;
         return 0;
     }
 

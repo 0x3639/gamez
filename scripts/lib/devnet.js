@@ -8,7 +8,7 @@ const DEVNET = {
   api: "https://devnet.zenon.foo/zvm/api",
   wrappedZnn: "0x91F5DDA8243e34697C99bE282e05bf48e35A0115",
   minBet: 10n ** 17n,          // 0.1
-  maxBetCap: 5n * 10n ** 18n,  // 5
+  maxBetCap: 5n * 10n ** 17n,  // 0.5
 };
 
 const DEPLOYMENT_FILE = path.join(__dirname, "..", "..", "web", "src", "deployment.json");

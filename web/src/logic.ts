@@ -15,7 +15,7 @@ export const MAX_MULTIPLIER = 40;
 /** Mirrors SlotMachine.multiplierX10 for display only; the contract is the source of truth. */
 export function multiplierX10(a: number, b: number, c: number): number {
   if (a === b && b === c) return a === 5 ? 400 : a === 4 ? 200 : 80;
-  if (a === b || b === c || a === c) return 13;
+  if (a === b || b === c || a === c) return 12;
   return 0;
 }
 

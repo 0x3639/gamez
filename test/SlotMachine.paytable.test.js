@@ -20,13 +20,13 @@ describe("SlotMachine paytable and views", () => {
       const m = await slot.multiplierX10(a, b, c);
       let want;
       if (a === b && b === c) want = a === 5 ? 400n : a === 4 ? 200n : 80n;
-      else if (a === b || b === c || a === c) want = 13n;
+      else if (a === b || b === c || a === c) want = 12n;
       else want = 0n;
       expect(m, `${a}${b}${c}`).to.equal(want);
       total += m;
     }
-    // RTP = 2090 / (216 * 10) = 96.76%
-    expect(total).to.equal(2090n);
+    // RTP = 2000 / (216 * 10) = 92.59%
+    expect(total).to.equal(2000n);
   });
 
   it("derives reels only from the block hash and id, each in 0..5", async () => {

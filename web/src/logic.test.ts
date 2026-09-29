@@ -50,11 +50,11 @@ describe("paytable mirror", () => {
   it("matches the contract", () => {
     let total = 0;
     for (let a = 0; a < 6; a++) for (let b = 0; b < 6; b++) for (let c = 0; c < 6; c++) total += multiplierX10(a, b, c);
-    expect(total).toBe(2090);
+    expect(total).toBe(2000);
     expect(multiplierX10(5, 5, 5)).toBe(400);
     expect(multiplierX10(4, 4, 4)).toBe(200);
     expect(multiplierX10(0, 0, 0)).toBe(80);
-    expect(multiplierX10(1, 2, 1)).toBe(13);
+    expect(multiplierX10(1, 2, 1)).toBe(12);
     expect(multiplierX10(0, 1, 2)).toBe(0);
     expect(SYMBOLS).toHaveLength(6);
     expect(SYMBOLS[5].name).toBe("moon");

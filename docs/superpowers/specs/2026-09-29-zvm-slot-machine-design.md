@@ -59,7 +59,7 @@ assembly, no `tx.origin`.
 - `uint256 public minBet` — initial 0.1 tokens (1e17).
 - `uint256 public constant MAX_MULTIPLIER = 40`.
 - `uint256 public locked` — sum of `amount * MAX_MULTIPLIER` for unsettled spins.
-- `uint256 public maxBetCap` — owner-set absolute ceiling per spin (initial 5 tokens), on top of the bankroll-derived limit.
+- `uint256 public maxBetCap` — owner-set absolute ceiling per spin (initial 0.5 tokens), on top of the bankroll-derived limit.
 - `uint256 public nextSpinId` — starts at 1.
 - `mapping(uint256 => Spin) public spins` where
   `Spin { address player; uint96 amount; uint64 targetBlock; bool settled; }`.
@@ -107,10 +107,10 @@ Symbol indexes 0–5: 0 cherry, 1 lemon, 2 bell, 3 diamond, 4 seven, 5 Z.
 | Three Z (5,5,5) | 40 | 1 |
 | Three sevens (4,4,4) | 20 | 1 |
 | Three of any other symbol | 8 | 4 |
-| Exactly two matching | 1.3 | 90 |
+| Exactly two matching | 1.2 | 90 |
 | No match | 0 | 120 |
 
-Return to player = (40 + 20 + 32 + 117) / 216 = 96.8%.
+Return to player = (40 + 20 + 32 + 108) / 216 = 92.6%, a 7.4% house edge, in line with a Las Vegas Strip slot.
 
 ### Views
 
@@ -288,7 +288,7 @@ gamez/                       # github.com/0x3639/gamez
    `web/src/deployment.json`.
 4. Verify via the explorer API; confirm the address page shows "Verified".
 5. `scripts/fund.ts`: wrap 50 ZNN, approve, `fund(50e18)`. Max bet becomes
-   1.25 wZNN. The remaining ZNN pays gas.
+   0.5 wZNN. The remaining ZNN pays gas.
 6. Push to `0x3639/gamez` (already created, empty), enable Pages with the
    GitHub Actions source, set the custom domain; `web/public/CNAME` =
    `gamez.0x3639.com`. The workflow builds `web/` on every push to `main`.

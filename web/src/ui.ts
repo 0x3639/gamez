@@ -65,7 +65,7 @@ export function layout(slotAddress: string): string {
         <tr><td>any other three of a kind</td><td>${multiplierX10(0,0,0)/10}×</td></tr>
         <tr><td>any pair</td><td>${multiplierX10(0,0,1)/10}×</td></tr>
       </table>
-      <p class="muted">Return to player 96.8%. Each spin is two transactions: place the bet, then settle once the next block exists. The result comes from that block's hash and cannot be changed by when you settle. Unsettled spins are forfeited after 256 blocks (about 40 minutes).</p>
+      <p class="muted">Return to player 92.6%. Each spin is two transactions: place the bet, then settle once the next block exists. The result comes from that block's hash and cannot be changed by when you settle. Unsettled spins are forfeited after 256 blocks (about 40 minutes).</p>
     </section>
   </main>
   <footer class="foot">

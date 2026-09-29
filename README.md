@@ -13,10 +13,11 @@ Play at https://gamez.0x3639.com. Devnet only; play money.
 
 ## Devnet deployment
 
-- Contract: [`0xC5Cc264FBA954Ce760030928589Ab4644BD57774`](https://devnet.zenon.foo/explorer/address/0xC5Cc264FBA954Ce760030928589Ab4644BD57774) (verified, exact match)
+- Contract: [`0xe865aF54d57ED62E317095D07F2927dA8e65Cc39`](https://devnet.zenon.foo/explorer/address/0xe865aF54d57ED62E317095D07F2927dA8e65Cc39) (verified, exact match). Paytable: three moon 40×, three chad 20×, other triple 8×, any pair 1.2×; return to player 92.6%.
 - Wrapped ZNN (wZNN) token: `0x91F5DDA8243e34697C99bE282e05bf48e35A0115`
-- Deploy block: 61340
-- Bankroll funded: 50 wZNN (max bet 1.25 wZNN)
+- Deploy block: 61988
+- Bankroll funded: 200 wZNN; max bet capped at 0.5 wZNN (`setLimits` can change it without a redeploy)
+- Retired: the first deployment at `0xC5Cc264FBA954Ce760030928589Ab4644BD57774` (pair paid 1.3×) is paused and drained; `scripts/retire.js` does that for any old deployment.
 - Owner: the deployer key on the maintainer's machine; transfer with `transferOwnership(newOwner)` then `acceptOwnership()` from the new owner.
 
 ### Deploying your own
