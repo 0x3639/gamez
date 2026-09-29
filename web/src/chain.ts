@@ -1,6 +1,7 @@
 import { parseEventLogs, type Address, type Hash } from "viem";
 import { SLOT_ABI, WETH_ABI } from "./abi";
 import { ADDRESSES, BLOCK_TIME_MS, FEES } from "./config";
+import { scanRange } from "./logic";
 import { publicClient, walletClient } from "./wallet";
 
 export type State = {
@@ -46,28 +47,35 @@ async function confirmed(hash: Hash): Promise<Hash> {
   return hash;
 }
 
+// Each write is simulated first so a revert surfaces as a decoded custom error before the wallet opens.
 export async function wrap(amount: bigint): Promise<Hash> {
   const a = await account();
-  return confirmed(await walletClient().writeContract({ ...wznn, functionName: "deposit", value: amount, account: a, ...FEES }));
+  const req = { ...wznn, functionName: "deposit", value: amount, account: a } as const;
+  await publicClient.simulateContract(req);
+  return confirmed(await walletClient().writeContract({ ...req, ...FEES }));
 }
 
 export async function unwrap(amount: bigint): Promise<Hash> {
   const a = await account();
-  return confirmed(await walletClient().writeContract({ ...wznn, functionName: "withdraw", args: [amount], account: a, ...FEES }));
+  const req = { ...wznn, functionName: "withdraw", args: [amount], account: a } as const;
+  await publicClient.simulateContract(req);
+  return confirmed(await walletClient().writeContract({ ...req, ...FEES }));
 }
 
 export async function approveMax(): Promise<Hash> {
   const a = await account();
-  return confirmed(
-    await walletClient().writeContract({ ...wznn, functionName: "approve", args: [ADDRESSES.slot, 2n ** 256n - 1n], account: a, ...FEES }),
-  );
+  const req = { ...wznn, functionName: "approve", args: [ADDRESSES.slot, 2n ** 256n - 1n], account: a } as const;
+  await publicClient.simulateContract(req);
+  return confirmed(await walletClient().writeContract({ ...req, ...FEES }));
 }
 
 export async function placeBet(amount: bigint): Promise<{ id: bigint; targetBlock: bigint; txHash: Hash }> {
   const a = await account();
-  const hash = await walletClient().writeContract({ ...slot, functionName: "placeBet", args: [amount], account: a, ...FEES });
+  const req = { ...slot, functionName: "placeBet", args: [amount], account: a } as const;
+  await publicClient.simulateContract(req);
+  const hash = await walletClient().writeContract({ ...req, ...FEES });
   const rc = await publicClient.waitForTransactionReceipt({ hash });
-  if (rc.status !== "success") throw new Error("Bet was rejected by the contract");
+  if (rc.status !== "success") throw new Error("Bet transaction reverted on chain");
   const [ev] = parseEventLogs({ abi: SLOT_ABI, eventName: "SpinPlaced", logs: rc.logs });
   if (!ev) throw new Error("No SpinPlaced event in receipt");
   return { id: ev.args.id, targetBlock: ev.args.targetBlock, txHash: hash };
@@ -79,9 +87,11 @@ export type SettleOutcome =
 
 export async function settle(id: bigint): Promise<SettleOutcome> {
   const a = await account();
-  const hash = await walletClient().writeContract({ ...slot, functionName: "settle", args: [id], account: a, ...FEES });
+  const req = { ...slot, functionName: "settle", args: [id], account: a } as const;
+  await publicClient.simulateContract(req);
+  const hash = await walletClient().writeContract({ ...req, ...FEES });
   const rc = await publicClient.waitForTransactionReceipt({ hash });
-  if (rc.status !== "success") throw new Error("Settle was rejected by the contract");
+  if (rc.status !== "success") throw new Error("Settle transaction reverted on chain");
   const [s] = parseEventLogs({ abi: SLOT_ABI, eventName: "SpinSettled", logs: rc.logs });
   if (s) return { kind: "settled", reels: [s.args.r0, s.args.r1, s.args.r2], payout: s.args.payout, txHash: hash };
   return { kind: "expired", txHash: hash };
@@ -97,8 +107,10 @@ export async function waitForBlockAfter(target: bigint): Promise<void> {
 }
 
 export async function findOpenSpins(player: Address): Promise<{ id: bigint; amount: bigint; targetBlock: bigint }[]> {
+  // Spins older than 256 blocks are forfeit, so a short window is enough (300 blocks ≈ 50 min).
+  const fromBlock = scanRange(await publicClient.getBlockNumber(), ADDRESSES.deployBlock, 300n);
   const logs = await publicClient.getContractEvents({
-    ...slot, eventName: "SpinPlaced", args: { player }, fromBlock: ADDRESSES.deployBlock, toBlock: "latest",
+    ...slot, eventName: "SpinPlaced", args: { player }, fromBlock, toBlock: "latest",
   });
   const out: { id: bigint; amount: bigint; targetBlock: bigint }[] = [];
   for (const l of logs.slice(-50)) {
@@ -109,9 +121,11 @@ export async function findOpenSpins(player: Address): Promise<{ id: bigint; amou
 }
 
 export async function recentResults(player: Address, n = 10): Promise<Result[]> {
+  // ~50,000 blocks at 10 s is about six days of history.
+  const fromBlock = scanRange(await publicClient.getBlockNumber(), ADDRESSES.deployBlock, 50_000n);
   const [settled, expired] = await Promise.all([
-    publicClient.getContractEvents({ ...slot, eventName: "SpinSettled", args: { player }, fromBlock: ADDRESSES.deployBlock, toBlock: "latest" }),
-    publicClient.getContractEvents({ ...slot, eventName: "SpinExpired", args: { player }, fromBlock: ADDRESSES.deployBlock, toBlock: "latest" }),
+    publicClient.getContractEvents({ ...slot, eventName: "SpinSettled", args: { player }, fromBlock, toBlock: "latest" }),
+    publicClient.getContractEvents({ ...slot, eventName: "SpinExpired", args: { player }, fromBlock, toBlock: "latest" }),
   ]);
   const rows: Result[] = [
     ...settled.map((l) => ({ id: l.args.id!, amount: l.args.amount!, reels: [l.args.r0!, l.args.r1!, l.args.r2!] as [number, number, number], payout: l.args.payout!, expired: false, txHash: l.transactionHash })),

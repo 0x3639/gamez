@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseBet, checkFunds, faucetMessage, isDevnet, multiplierX10, formatZnn, SYMBOLS } from "./logic";
+import { parseBet, checkFunds, faucetMessage, isDevnet, multiplierX10, formatZnn, formatZnnDown, scanRange, SYMBOLS } from "./logic";
 
 const E = (n: string) => BigInt(Math.round(Number(n) * 1e6)) * 10n ** 12n;
 
@@ -68,5 +68,35 @@ describe("formatZnn", () => {
     expect(formatZnn(E("0.13"))).toBe("0.13");
     expect(formatZnn(123456789012345678n)).toBe("0.1235");
     expect(formatZnn(0n)).toBe("0");
+  });
+});
+
+describe("formatZnnDown", () => {
+  it("floors instead of rounding half-up", () => {
+    expect(formatZnnDown(1251750000000000000n)).toBe("1.2517");
+    expect(formatZnnDown(999990000000000000n)).toBe("0.9999");
+    expect(formatZnnDown(10n ** 18n)).toBe("1");
+    expect(formatZnnDown(0n)).toBe("0");
+    expect(formatZnnDown(1500000000000000000n)).toBe("1.5");
+  });
+});
+
+describe("parseBet displayed max", () => {
+  const min = 10n ** 17n;
+  const max = 1251750000000000000n;
+  it("never displays a max above what is accepted", () => {
+    const r = parseBet("9", min, max);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.message.endsWith("1.2517 wZNN")).toBe(true);
+    expect(parseBet("1.2517", min, max).ok).toBe(true);
+  });
+});
+
+describe("scanRange", () => {
+  it("returns max(deployBlock, latest - window)", () => {
+    expect(scanRange(1000n, 100n, 300n)).toBe(700n);
+    expect(scanRange(200n, 100n, 300n)).toBe(100n);
+    expect(scanRange(400n, 100n, 300n)).toBe(100n);
+    expect(scanRange(50n, 100n, 300n)).toBe(100n);
   });
 });

@@ -1,6 +1,6 @@
 import type { Address } from "viem";
 import { EXPLORER } from "./config";
-import { formatZnn, multiplierX10, SYMBOLS } from "./logic";
+import { formatZnn, formatZnnDown, multiplierX10, SYMBOLS } from "./logic";
 import type { Result, State } from "./chain";
 
 export const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -79,7 +79,7 @@ export function renderState(s: State, player: Address | null): void {
   $("#znn").textContent = player ? formatZnn(s.znn) : "–";
   $("#wznn").textContent = player ? formatZnn(s.wznn) : "–";
   $("#bankroll").textContent = `${formatZnn(s.bankroll)} wZNN`;
-  $("#limits").textContent = s.paused ? "Machine paused" : `min ${formatZnn(s.minBet)} · max ${formatZnn(s.maxBet)} wZNN`;
+  $("#limits").textContent = s.paused ? "Machine paused" : `min ${formatZnn(s.minBet)} · max ${formatZnnDown(s.maxBet)} wZNN`;
 }
 
 export function renderHistory(rows: Result[]): void {
@@ -129,7 +129,7 @@ export function errorText(e: unknown): string {
   const anyE = e as ErrLike;
   const all = errorTexts(e);
   const code = anyE?.code ?? (anyE?.cause as ErrLike | undefined)?.code;
-  if (code === 4001 || /user rejected|rejected the request|rejected/i.test(all)) return "Cancelled in the wallet";
+  if (code === 4001 || /user rejected|rejected the request|user denied/i.test(all)) return "Cancelled in the wallet";
   if (/ChainMismatch/i.test(all) || (/chain/i.test(all) && /mismatch|does not match/i.test(all))) return "Switch to ZVM devnet to play";
   if (/insufficient funds/i.test(all)) return "Not enough ZNN to pay for gas";
   for (const [name, text] of CONTRACT_ERRORS) if (all.includes(name)) return text;

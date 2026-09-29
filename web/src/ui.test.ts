@@ -9,6 +9,13 @@ describe("errorText", () => {
     expect(errorText({ message: "outer", cause: { code: 4001 } })).toBe("Cancelled in the wallet");
   });
 
+  it("does not treat on-chain reverts as wallet cancels", () => {
+    expect(errorText({ message: "Bet transaction reverted on chain" })).toBe("Bet transaction reverted on chain");
+    expect(errorText({ message: "Settle transaction reverted on chain" })).toBe("Settle transaction reverted on chain");
+    expect(errorText({ message: "User rejected the request." })).toBe("Cancelled in the wallet");
+    expect(errorText({ code: 4001 })).toBe("Cancelled in the wallet");
+  });
+
   it("maps chain mismatch", () => {
     expect(errorText({ name: "ChainMismatchError", message: "boom" })).toBe("Switch to ZVM devnet to play");
     expect(errorText({ message: "The current chain of the wallet (id: 1) does not match the target chain" })).toBe("Switch to ZVM devnet to play");

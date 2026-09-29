@@ -27,10 +27,25 @@ export function formatZnn(wei: bigint, digits = 4): string {
   return f ? `${i}.${f}` : `${i}`;
 }
 
+/** Like formatZnn but floors, so a displayed maximum never exceeds the amount the contract accepts. */
+export function formatZnnDown(wei: bigint, digits = 4): string {
+  const unit = 10n ** BigInt(18 - digits);
+  const floored = wei / unit;
+  const i = floored / 10n ** BigInt(digits);
+  const f = (floored % 10n ** BigInt(digits)).toString().padStart(digits, "0").replace(/0+$/, "");
+  return f ? `${i}.${f}` : `${i}`;
+}
+
+/** First block to scan for events: max(deployBlock, latest - window). */
+export function scanRange(latest: bigint, deployBlock: bigint, window: bigint): bigint {
+  const from = latest - window;
+  return from > deployBlock ? from : deployBlock;
+}
+
 export function parseBet(input: string, min: bigint, max: bigint):
   { ok: true; value: bigint } | { ok: false; message: string } {
   if (max < min) return { ok: false, message: "The machine is out of bankroll right now" };
-  const range = `Enter a bet between ${formatZnn(min)} and ${formatZnn(max)} wZNN`;
+  const range = `Enter a bet between ${formatZnn(min)} and ${formatZnnDown(max)} wZNN`;
   const t = input.trim();
   if (!/^\d+(\.\d{1,18})?$/.test(t)) return { ok: false, message: range };
   const value = parseUnits(t, 18);
