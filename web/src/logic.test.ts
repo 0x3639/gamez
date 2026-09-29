@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseBet, checkFunds, faucetMessage, isDevnet, multiplierX10, formatZnn, formatZnnDown, scanRange, SYMBOLS } from "./logic";
+import { parseBet, checkFunds, faucetMessage, isDevnet, multiplierX10, formatZnn, formatZnnDown, scanRange, SYMBOLS, reelsFromHash, payoutFor, isExpired } from "./logic";
 
 const E = (n: string) => BigInt(Math.round(Number(n) * 1e6)) * 10n ** 12n;
 
@@ -98,5 +98,29 @@ describe("scanRange", () => {
     expect(scanRange(200n, 100n, 300n)).toBe(100n);
     expect(scanRange(400n, 100n, 300n)).toBe(100n);
     expect(scanRange(50n, 100n, 300n)).toBe(100n);
+  });
+});
+
+describe("reelsFromHash (golden vectors from spins settled on the ZVM devnet)", () => {
+  it("matches SpinSettled for spin 1 of 0xe865aF54 (block 62020 → 2 2 5, 0.1 bet paid 0.12)", () => {
+    const reels = reelsFromHash("0xd163c174f08ff92a250a38324738a125b193783d03ad01dfec4a3a289c1a6974", 1n);
+    expect(reels).toEqual([2, 2, 5]);
+    expect(payoutFor(100000000000000000n, reels)).toBe(120000000000000000n);
+  });
+  it("matches SpinSettled for spin 1 of 0xC5Cc264F (block 61370 → 5 4 0, no win)", () => {
+    const reels = reelsFromHash("0x1c80a39790eec86b567d8bf06d3005d08561815956b5b706c0b67f0e00d7222a", 1n);
+    expect(reels).toEqual([5, 4, 0]);
+    expect(payoutFor(100000000000000000n, reels)).toBe(0n);
+  });
+  it("floors the payout like the contract", () => {
+    expect(payoutFor(1n, [0, 0, 1])).toBe(1n); // 1 * 12 / 10 = 1.2 → 1
+    expect(payoutFor(3n, [5, 5, 5])).toBe(120n);
+  });
+});
+
+describe("isExpired", () => {
+  it("flips only after 256 blocks", () => {
+    expect(isExpired(100n, 356n)).toBe(false);
+    expect(isExpired(100n, 357n)).toBe(true);
   });
 });

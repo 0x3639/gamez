@@ -1,7 +1,7 @@
 import { parseEventLogs, type Address, type Hash } from "viem";
 import { SLOT_ABI, WETH_ABI } from "./abi";
 import { ADDRESSES, BLOCK_TIME_MS, FEES } from "./config";
-import { scanRange } from "./logic";
+import { isExpired, payoutFor, reelsFromHash, scanRange } from "./logic";
 import { publicClient, walletClient } from "./wallet";
 
 export type State = {
@@ -98,12 +98,30 @@ export async function settle(id: bigint): Promise<SettleOutcome> {
 }
 
 /** Resolve once block.number > target. Polls every 2 s; blocks land every ~10 s. */
-export async function waitForBlockAfter(target: bigint): Promise<void> {
+export async function waitForBlockAfter(target: bigint, onTick?: (current: bigint) => void): Promise<void> {
   for (let i = 0; i < 60; i++) {
-    if ((await publicClient.getBlockNumber()) > target) return;
+    const current = await publicClient.getBlockNumber();
+    if (current > target) return;
+    onTick?.(current);
     await new Promise((r) => setTimeout(r, Math.min(2000, BLOCK_TIME_MS)));
   }
   throw new Error("The next block is taking too long; try Settle again in a moment");
+}
+
+export type Preview =
+  | { kind: "result"; reels: [number, number, number]; payout: bigint }
+  | { kind: "expired" };
+
+/**
+ * Compute the spin's result off-chain from the target block's hash, exactly as the
+ * contract will. Call only after `waitForBlockAfter(targetBlock)`.
+ */
+export async function previewSpin(id: bigint, amount: bigint, targetBlock: bigint): Promise<Preview> {
+  const current = await publicClient.getBlockNumber();
+  if (isExpired(targetBlock, current)) return { kind: "expired" };
+  const block = await publicClient.getBlock({ blockNumber: targetBlock });
+  const reels = reelsFromHash(block.hash, id);
+  return { kind: "result", reels, payout: payoutFor(amount, reels) };
 }
 
 export async function findOpenSpins(player: Address): Promise<{ id: bigint; amount: bigint; targetBlock: bigint }[]> {

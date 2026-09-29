@@ -2,7 +2,7 @@ import "./style.css";
 import type { Address } from "viem";
 import { parseUnits } from "viem";
 import { ADDRESSES } from "./config";
-import { findOpenSpins, readState as readChainState, recentResults, unwrap, wrap, type SettleOutcome, type State } from "./chain";
+import { findOpenSpins, readState as readChainState, recentResults, unwrap, wrap, type Preview, type SettleOutcome, type State } from "./chain";
 import { requestFaucet } from "./faucet";
 import { formatZnn, parseBet } from "./logic";
 import { Reels } from "./reels";
@@ -70,7 +70,7 @@ async function refresh(): Promise<void> {
       $("#settleopen").addEventListener("click", () => guard(async () => {
         $("#result").textContent = "";
         reels.start();
-        await resumeSpin(o.id, o.targetBlock, hooks);
+        await resumeSpin(o.id, o.amount, o.targetBlock, hooks);
       }));
     } else {
       box.classList.add("hidden");
@@ -84,11 +84,36 @@ async function refresh(): Promise<void> {
   }
 }
 
+let waitStarted = 0;
+let previewed: Preview | null = null;
+
 const hooks = {
   status: (m: string) => setStatus(m),
   placed: (_id: bigint, txHash: `0x${string}`) => {
+    previewed = null;
+    waitStarted = Date.now();
     reels.start();
     $("#result").innerHTML = `<a href="${txLink(txHash)}" target="_blank" rel="noopener">bet placed ↗</a>`;
+  },
+  waiting: (target: bigint, current: bigint) => {
+    const secs = Math.round((Date.now() - waitStarted) / 1000);
+    $("#result").innerHTML = `Waiting for block ${target.toLocaleString()} <span class="muted">(chain is at ${current.toLocaleString()}, ${secs}s)</span>`;
+  },
+  // The target block exists: show the result now, before the settle transaction is mined.
+  preview: async (p: Preview) => {
+    previewed = p;
+    if (p.kind === "expired") {
+      reels.showIdle();
+      $("#result").innerHTML = "This spin expired before it was settled, so the bet is forfeited.";
+      return;
+    }
+    await reels.stopOn(p.reels);
+    if (p.payout > 0n) {
+      reels.markWin();
+      $("#result").innerHTML = `<strong>You win ${formatZnn(p.payout)} wZNN</strong> <span class="muted">collecting…</span>`;
+    } else {
+      $("#result").innerHTML = `No win this time. <span class="muted">finishing…</span>`;
+    }
   },
   settled: async (o: SettleOutcome) => {
     if (o.kind === "expired") {
@@ -97,7 +122,8 @@ const hooks = {
       setStatus("");
       return;
     }
-    await reels.stopOn(o.reels);
+    const same = previewed?.kind === "result" && previewed.reels.every((r: number, i: number) => r === o.reels[i]);
+    if (!same) await reels.stopOn(o.reels); // preview missing or (reorg) different: stop on the settled reels
     if (o.payout > 0n) {
       reels.markWin();
       $("#result").innerHTML = `<strong>You win ${formatZnn(o.payout)} wZNN</strong> <a href="${txLink(o.txHash)}" target="_blank" rel="noopener">tx ↗</a>`;

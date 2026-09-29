@@ -1,4 +1,4 @@
-import { formatUnits, parseUnits } from "viem";
+import { encodePacked, formatUnits, keccak256, parseUnits, type Hex } from "viem";
 
 /** Reel artwork is placeholder meme art (original SVGs in web/public/symbols); swap the files to re-skin. */
 export const SYMBOLS = [
@@ -67,4 +67,25 @@ export function faucetMessage(status: number, body: unknown): string {
 
 export function isDevnet(chainId: number | null): boolean {
   return chainId === 7340469;
+}
+
+/**
+ * Off-chain mirror of SlotMachine.reelsFor: seed = keccak256(blockHash ‖ id),
+ * reel i = keccak256(seed ‖ uint8(i)) mod 6. Lets the page reveal a result the
+ * moment the target block exists, before the settle transaction is mined.
+ */
+export function reelsFromHash(blockHash: Hex, id: bigint): [number, number, number] {
+  const seed = keccak256(encodePacked(["bytes32", "uint256"], [blockHash, id]));
+  const reel = (i: number) => Number(BigInt(keccak256(encodePacked(["bytes32", "uint8"], [seed, i]))) % 6n);
+  return [reel(0), reel(1), reel(2)];
+}
+
+/** Payout for a bet and reels, exactly as the contract computes it (floor of amount × multiplier). */
+export function payoutFor(amount: bigint, reels: [number, number, number]): bigint {
+  return (amount * BigInt(multiplierX10(reels[0], reels[1], reels[2]))) / 10n;
+}
+
+/** True once a spin's target block is too old for blockhash(); the contract will forfeit it. */
+export function isExpired(targetBlock: bigint, currentBlock: bigint): boolean {
+  return currentBlock - targetBlock > 256n;
 }
