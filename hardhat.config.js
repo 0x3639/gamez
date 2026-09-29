@@ -19,6 +19,8 @@ module.exports = {
     zvmDevnet: {
       url: DEVNET_RPC,
       chainId: DEVNET_CHAIN_ID,
+      // devnet relayer requires >= 50 gwei priority fee; real txs use 100 gwei
+      gasPrice: 100_001_000_000,
       accounts: key ? [key] : [],
     },
   },
