@@ -98,9 +98,11 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
     /// @dev Each reel takes a full 256-bit hash mod 6; modulo bias is ~2^-254, i.e. none in practice.
     function reelsFor(bytes32 blockHash, uint256 id) public pure returns (uint8 r0, uint8 r1, uint8 r2) {
         bytes32 seed = keccak256(abi.encodePacked(blockHash, id));
+        // slither-disable-start weak-prng (block hash as the seed is the documented devnet design)
         r0 = uint8(uint256(keccak256(abi.encodePacked(seed, uint8(0)))) % SYMBOLS);
         r1 = uint8(uint256(keccak256(abi.encodePacked(seed, uint8(1)))) % SYMBOLS);
         r2 = uint8(uint256(keccak256(abi.encodePacked(seed, uint8(2)))) % SYMBOLS);
+        // slither-disable-end weak-prng
     }
 
     // ---------------------------------------------------------------- player

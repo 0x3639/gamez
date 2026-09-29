@@ -37,8 +37,10 @@ describe("SlotMachine.settle", () => {
     let p, s;
     await ethers.provider.send("evm_setAutomine", [false]);
     try {
-      p = slot.connect(alice).placeBet(E(1));
-      s = slot.connect(alice).settle(1n);
+      // Explicit gasLimit skips estimateGas, which would race the pending placeBet and reject early.
+      // Sequential sends keep the nonce order (placeBet first); with automine off each resolves once queued.
+      p = await slot.connect(alice).placeBet(E(1), { gasLimit: 500000n });
+      s = await slot.connect(alice).settle(1n, { gasLimit: 500000n });
       await mine(1);
     } finally {
       await ethers.provider.send("evm_setAutomine", [true]);
@@ -129,12 +131,13 @@ describe("SlotMachine.settle", () => {
     const txs = [];
     await ethers.provider.send("evm_setAutomine", [false]);
     try {
-      for (let i = 0; i < 5; i++) txs.push(slot.connect(alice).placeBet(E(0.5)));
+      // Explicit gasLimit skips estimateGas; wait until every tx is in the mempool before mining them together.
+      for (let i = 0; i < 5; i++) txs.push(slot.connect(alice).placeBet(E(0.5), { gasLimit: 500000n }));
+      await Promise.all(txs);
       await mine(1);
     } finally {
       await ethers.provider.send("evm_setAutomine", [true]);
     }
-    await Promise.all(txs);
     expect(await slot.locked()).to.equal(E(0.5) * 40n * 5n);
     await mine(1);
     const seen = new Set();
