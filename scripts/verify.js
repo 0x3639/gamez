@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
-const { DEVNET, readDeployment, sleep } = require("./lib/devnet");
+const { ethers } = require("hardhat");
+const { DEVNET, readDeployment, sleep, requireDevnet } = require("./lib/devnet");
 
 function latestBuildInfo() {
   const dir = path.join(__dirname, "..", "artifacts", "build-info");
@@ -11,11 +12,14 @@ function latestBuildInfo() {
 }
 
 async function main() {
+  await requireDevnet(ethers.provider);
   const d = readDeployment();
   const info = latestBuildInfo();
   const compilers = await (await fetch(`${DEVNET.api}/verify/compilers`)).json();
-  const build = compilers.builds.find((b) => b.version === info.solcVersion && !b.longVersion.includes("pre"));
-  if (!build) throw new Error(`verifier has no solc ${info.solcVersion}`);
+  const build = compilers.builds.find((b) => info.solcLongVersion
+    ? b.longVersion === info.solcLongVersion
+    : b.version === info.solcVersion && !b.longVersion.includes("pre"));
+  if (!build) throw new Error(`verifier has no solc ${info.solcLongVersion || info.solcVersion}`);
   // Only send the sources the contract needs (SlotMachine + its OpenZeppelin imports).
   const input = { ...info.input, sources: Object.fromEntries(
     Object.entries(info.input.sources).filter(([p]) => !p.startsWith("contracts/test/"))) };

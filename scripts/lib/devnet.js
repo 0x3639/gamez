@@ -34,6 +34,13 @@ async function faucet(address) {
   return body;
 }
 
+async function requireDevnet(provider) {
+  const { chainId } = await provider.getNetwork();
+  if (Number(chainId) !== DEVNET.chainId) {
+    throw new Error(`wrong network: chain ${chainId}, expected ${DEVNET.chainId} (use --network zvmDevnet)`);
+  }
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const WETH_ABI = [
@@ -44,4 +51,4 @@ const WETH_ABI = [
   "function balanceOf(address) view returns (uint256)",
 ];
 
-module.exports = { DEVNET, DEPLOYMENT_FILE, readDeployment, writeDeployment, faucet, sleep, WETH_ABI };
+module.exports = { DEVNET, DEPLOYMENT_FILE, readDeployment, writeDeployment, faucet, sleep, requireDevnet, WETH_ABI };
