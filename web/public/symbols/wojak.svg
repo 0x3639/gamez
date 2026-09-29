@@ -5,8 +5,8 @@
 <path d="M56 84V100M72 84V100" fill="none"/>
 <path d="M36 44Q36 12 64 12Q92 12 92 44Q92 66 82 78Q74 88 64 88Q54 88 46 78Q36 66 36 44Z" fill="#f6f6f4"/>
 <path d="M36 50Q28 50 30 58Q32 64 37 62M92 50Q100 50 98 58Q96 64 91 62" fill="none"/>
-<path d="M46 44L60 37M82 44L68 37" fill="none"/>
-<path d="M53 73Q64 65 75 73" fill="none"/>
+<path d="M46 44L60 37M82 44L68 37" fill="none" stroke-width="7"/>
+<path d="M53 74Q64 65 75 74" fill="none" stroke-width="7"/>
 </g>
 <circle cx="54" cy="54" r="3.5" fill="#3f4450"/>
 <circle cx="74" cy="54" r="3.5" fill="#3f4450"/>
