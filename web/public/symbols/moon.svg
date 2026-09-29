@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+<rect width="128" height="128" rx="24" fill="#0b1a3a"/>
+<path d="M62 12A50 50 0 1 0 116 82A40 40 0 0 1 62 12Z" fill="#ffe9a3"/>
+<g fill="#fff">
+<path d="M22 22L25 30L33 33L25 36L22 44L19 36L11 33L19 30Z"/>
+<path d="M100 14L102 19L107 21L102 23L100 28L98 23L93 21L98 19Z"/>
+<path d="M112 52L114 57L119 59L114 61L112 66L110 61L105 59L110 57Z"/>
+</g>
+<g transform="rotate(45 62 62)" stroke="#0b1a3a" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+<path d="M62 12Q82 34 78 84H46Q42 34 62 12Z" fill="#fff"/>
+<path d="M46 62L30 88L46 82ZM78 62L94 88L78 82Z" fill="#e5484d"/>
+<circle cx="62" cy="50" r="8" fill="#5ab4ff"/>
+<path d="M52 90L62 116L72 90Z" fill="#ff9a1f"/>
+</g>
+<text x="64" y="123" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="900" font-size="11" letter-spacing="2" fill="#ffe9a3">MOON</text>
+</svg>
