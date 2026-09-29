@@ -17,7 +17,7 @@
 - Faucet: `POST https://devnet.zenon.foo/zvm/api/faucet` body `{"address":"0x…"}`, 5 ZNN per call, 10 s cooldown.
 - Verify: `POST https://devnet.zenon.foo/zvm/api/verify` with `{address, compiler, contract, input, constructorArgs}`; poll `GET …/api/verify/{id}`.
 - Solidity exactly `0.8.28`, optimizer enabled, 200 runs, evmVersion `cancun`. Only OpenZeppelin 5 imports. No assembly, delegatecall, selfdestruct, `tx.origin`.
-- `MAX_MULTIPLIER = 40`; paytable ×10: three Z 400, three sevens 200, other triple 80, any pair 13, else 0. Symbols 0 cherry, 1 lemon, 2 bell, 3 diamond, 4 seven, 5 Z.
+- `MAX_MULTIPLIER = 40`; paytable ×10: three Z 400, three sevens 200, other triple 80, any pair 13, else 0. Symbol indexes are fixed by the contract; artwork is a front-end concern. Placeholder art (memes, to be replaced later): 0 wojak, 1 pepe, 2 doge, 3 stonks, 4 chad, 5 moon (jackpot). All artwork is original SVG drawn in this repo; no downloaded or copied images.
 - Seed = `keccak256(abi.encodePacked(blockhash(targetBlock), id))`; nothing from the settle block. `targetBlock = block.number + 1`. Expired (`blockhash == 0`) forfeits.
 - Initial limits: `minBet = 0.1e18`, `maxBetCap = 5e18`. Bankroll to fund: 50 wZNN.
 - `.env` holds `DEPLOYER_PRIVATE_KEY` and is gitignored; the key never appears in chat, logs, or commits.
@@ -453,7 +453,7 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
     }
 
     uint256 public constant MAX_MULTIPLIER = 40; // three Z pays 40x; every bet reserves this
-    uint8 public constant SYMBOLS = 6;           // 0 cherry, 1 lemon, 2 bell, 3 diamond, 4 seven, 5 Z
+    uint8 public constant SYMBOLS = 6;           // reel symbols 0..5; 4 and 5 are the premium ones, art is a UI concern
     uint8 public constant SYMBOL_SEVEN = 4;
     uint8 public constant SYMBOL_Z = 5;
 
@@ -1432,7 +1432,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Create: `web/package.json`, `web/vite.config.ts`, `web/tsconfig.json`, `web/index.html`, `web/public/CNAME`, `web/src/config.ts`, `web/src/abi.ts`, `web/src/logic.ts`, `web/src/logic.test.ts`, `web/src/deployment.json` (placeholder until Task 11)
 
 **Interfaces:**
-- Produces (`logic.ts`): `parseBet(input: string, min: bigint, max: bigint): { ok: true; value: bigint } | { ok: false; message: string }`; `checkFunds(bet: bigint, wznn: bigint): string | null`; `faucetMessage(status: number, body: unknown): string`; `isDevnet(chainId: number | null): boolean`; `SYMBOLS: readonly {name, glyph}[]`; `multiplierX10(a,b,c): number`; `formatZnn(wei: bigint, digits?: number): string`.
+- Produces (`logic.ts`): `SYMBOLS: readonly {name, label, image}[]`; `parseBet(input: string, min: bigint, max: bigint): { ok: true; value: bigint } | { ok: false; message: string }`; `checkFunds(bet: bigint, wznn: bigint): string | null`; `faucetMessage(status: number, body: unknown): string`; `isDevnet(chainId: number | null): boolean`; `multiplierX10(a,b,c): number`; `formatZnn(wei: bigint, digits?: number): string`.
 - Produces (`config.ts`): `DEVNET` viem chain, `ADDRESSES`, `EXPLORER`, `FAUCET_URL`, `ADD_CHAIN_PARAMS`.
 - Produces (`abi.ts`): `SLOT_ABI`, `WETH_ABI` as `const`.
 
@@ -1655,7 +1655,8 @@ describe("paytable mirror", () => {
     expect(multiplierX10(1, 2, 1)).toBe(13);
     expect(multiplierX10(0, 1, 2)).toBe(0);
     expect(SYMBOLS).toHaveLength(6);
-    expect(SYMBOLS[5].name).toBe("Z");
+    expect(SYMBOLS[5].name).toBe("moon");
+    for (const s of SYMBOLS) expect(s.image).toMatch(/^\/symbols\/[a-z]+\.svg$/);
   });
 });
 
@@ -1680,13 +1681,14 @@ Expected: FAIL, cannot resolve `./logic`.
 ```ts
 import { formatUnits, parseUnits } from "viem";
 
+/** Reel artwork is placeholder meme art (original SVGs in web/public/symbols); swap the files to re-skin. */
 export const SYMBOLS = [
-  { name: "cherry", glyph: "🍒" },
-  { name: "lemon", glyph: "🍋" },
-  { name: "bell", glyph: "🔔" },
-  { name: "diamond", glyph: "💎" },
-  { name: "seven", glyph: "7" },
-  { name: "Z", glyph: "Z" },
+  { name: "wojak", label: "Wojak", image: "/symbols/wojak.svg" },
+  { name: "pepe", label: "Pepe", image: "/symbols/pepe.svg" },
+  { name: "doge", label: "Doge", image: "/symbols/doge.svg" },
+  { name: "stonks", label: "Stonks", image: "/symbols/stonks.svg" },
+  { name: "chad", label: "Chad", image: "/symbols/chad.svg" },
+  { name: "moon", label: "Moon", image: "/symbols/moon.svg" },
 ] as const;
 
 export const MAX_MULTIPLIER = 40;
@@ -2053,6 +2055,80 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 ---
 
+### Task 9b: Placeholder meme artwork for the reels
+
+**Files:**
+- Create: `web/public/symbols/wojak.svg`, `web/public/symbols/pepe.svg`, `web/public/symbols/doge.svg`, `web/public/symbols/stonks.svg`, `web/public/symbols/chad.svg`, `web/public/symbols/moon.svg`
+- Test: `web/src/symbols.test.ts`
+
+**Interfaces:**
+- Consumes: `SYMBOLS` from `logic.ts` (names and image paths fixed there).
+- Produces: six square SVG files at the paths `SYMBOLS[i].image` resolves to under `web/public/`.
+
+These are placeholders the owner will replace later. They must be original drawings made in this repo, in the flat, instantly recognisable style of the memes named, never downloaded, traced, or copied files. Use the `frontend-design` skill for the drawing pass.
+
+- [ ] **Step 1: Write the failing test**
+
+`web/src/symbols.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { SYMBOLS } from "./logic";
+
+const pub = join(__dirname, "..", "public");
+
+describe("reel artwork", () => {
+  for (const s of SYMBOLS) {
+    it(`${s.name} exists, is square SVG, and has no external references`, () => {
+      const file = join(pub, s.image);
+      expect(existsSync(file), file).toBe(true);
+      const svg = readFileSync(file, "utf8");
+      expect(svg.startsWith("<svg")).toBe(true);
+      expect(svg).toMatch(/viewBox="0 0 (\d+) \1"/);      // square
+      expect(svg).not.toMatch(/href=|url\(|<image|<script/i);   // self-contained, no raster, no scripts
+      expect(svg.length).toBeLessThan(12_000);           // hand-drawn flat art, not an exported bitmap
+    });
+  }
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd web && npx vitest run src/symbols.test.ts`
+Expected: 6 failing on `existsSync`.
+
+- [ ] **Step 3: Draw the six SVGs**
+
+Each file: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">` with a rounded-square background (`rx="24"`) in a colour that separates the symbols at a glance, and a flat, bold, few-path figure filling about 80% of the tile. Keep every file self-contained (no `href`, `url()`, `<image>`, `<script>`, no fonts other than `system-ui` text where a word is part of the meme). Subjects:
+
+| index | file | what to draw | background |
+|---|---|---|---|
+| 0 | wojak.svg | bald pale head, thin neck, small sad downturned mouth, two dot eyes, the "feels" look; grey line art on a light grey tile | `#cfd3da` |
+| 1 | pepe.svg | green frog face: big half-closed eyes with heavy lids, wide flat mouth with a hint of smirk, red lower lip line | `#6fbf73` background with darker green `#3f8f45` face |
+| 2 | doge.svg | tan shiba inu face: pointed ears, round cheeks, small black nose, side-eye pupils, cream muzzle; add two tiny Comic-style words "wow" and "such" in `system-ui` italic | `#f2c14e` |
+| 3 | stonks.svg | blue suit torso with a grey featureless head, and a big bright orange arrow rising left-to-right with a jagged step; word "STONKS" in bold caps at the bottom | `#1d3557` |
+| 4 | chad.svg | gigachad: black and white, strong jaw, square chin, short dark hair, stern profile facing left, heavy shading blocks | `#111111` with `#e8e8e8` figure |
+| 5 | moon.svg | jackpot: a white rocket angled up-right with a flame, a big pale-yellow crescent moon behind, three small stars; word "MOON" small at the bottom | `#0b1a3a` |
+
+Save each with `\n` line endings and no XML prolog. Open the folder in the browser (`npm run dev`, then `/symbols/pepe.svg` etc.) and adjust until each reads as its meme at 96 px and at 22 px.
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd web && npx vitest run`
+Expected: all passing, including the 6 artwork checks.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add web/public/symbols web/src/symbols.test.ts
+git commit -m "feat(web): placeholder meme artwork for the six reel symbols
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
 ### Task 10: UI — reels, panels, styling, main wiring
 
 **Files:**
@@ -2084,7 +2160,11 @@ export class Reels {
       for (const s of STRIP) {
         const cell = document.createElement("div");
         cell.className = `cell sym-${s.name}`;
-        cell.textContent = s.glyph;
+        const img = document.createElement("img");
+        img.src = s.image;
+        img.alt = s.label;
+        img.draggable = false;
+        cell.appendChild(img);
         strip.appendChild(cell);
       }
       col.appendChild(strip);
@@ -2142,6 +2222,11 @@ export function short(a: Address): string { return `${a.slice(0, 6)}…${a.slice
 export function txLink(hash: string): string { return `${EXPLORER}/tx/${hash}`; }
 export function addrLink(a: string): string { return `${EXPLORER}/address/${a}`; }
 
+export function sym(i: number): string {
+  const s = SYMBOLS[i];
+  return `<img class="symsmall" src="${s.image}" alt="${s.label}" />`;
+}
+
 export function layout(slotAddress: string): string {
   return `
   <header class="top">
@@ -2188,8 +2273,8 @@ export function layout(slotAddress: string): string {
     <section class="panel">
       <h2>Paytable</h2>
       <table class="paytable">
-        <tr><td>${SYMBOLS[5].glyph} ${SYMBOLS[5].glyph} ${SYMBOLS[5].glyph}</td><td>${multiplierX10(5,5,5)/10}×</td></tr>
-        <tr><td>${SYMBOLS[4].glyph} ${SYMBOLS[4].glyph} ${SYMBOLS[4].glyph}</td><td>${multiplierX10(4,4,4)/10}×</td></tr>
+        <tr><td>${sym(5)} ${sym(5)} ${sym(5)}</td><td>${multiplierX10(5,5,5)/10}×</td></tr>
+        <tr><td>${sym(4)} ${sym(4)} ${sym(4)}</td><td>${multiplierX10(4,4,4)/10}×</td></tr>
         <tr><td>any other three of a kind</td><td>${multiplierX10(0,0,0)/10}×</td></tr>
         <tr><td>any pair</td><td>${multiplierX10(0,0,1)/10}×</td></tr>
       </table>
@@ -2214,7 +2299,7 @@ export function renderHistory(rows: Result[]): void {
   const ol = $("#history");
   if (!rows.length) { ol.innerHTML = `<li class="muted">No spins yet.</li>`; return; }
   ol.innerHTML = rows.map((r) => {
-    const reels = r.reels ? r.reels.map((i) => SYMBOLS[i].glyph).join(" ") : "expired";
+    const reels = r.reels ? r.reels.map((i) => sym(i)).join(" ") : "expired";
     const out = r.expired ? "forfeited" : r.payout > 0n ? `+${formatZnn(r.payout)}` : "no win";
     return `<li><span class="reelsmall">${reels}</span><span>${formatZnn(r.amount)} wZNN</span><span class="${r.payout > 0n ? "win" : ""}">${out}</span><a href="${txLink(r.txHash)}" target="_blank" rel="noopener">tx</a></li>`;
   }).join("");
@@ -2389,6 +2474,7 @@ Write `web/src/style.css` following the frontend-design skill. Hard requirements
 - `.reel.spinning .strip { animation: spin 350ms linear infinite }` with `@keyframes spin { from { transform: translateY(0) } to { transform: translateY(calc(-6 * var(--cell))) } }`.
 - `@media (prefers-reduced-motion: reduce) { .reel.spinning .strip { animation: none; opacity: .6 } }`.
 - `.reel.win { box-shadow: 0 0 0 3px var(--win), 0 0 24px var(--win) }`.
+- `.paytable img`, `.history img` never exceed 22 px.
 - `.wrap { max-width: 720px; margin: 0 auto; padding: 0 16px }`; `body { margin:0; background: var(--bg); color: var(--ink) }`; no element wider than the viewport at 360 px.
 - `.status.error { color: var(--error) }`, `.status.ok { color: var(--win) }`, `.pill.warn { background: var(--error) }`, `.hidden { display: none }`.
 - Numerals: `font-variant-numeric: tabular-nums` on `.stats dd`, `.history`.
