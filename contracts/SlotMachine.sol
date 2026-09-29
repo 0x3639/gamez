@@ -103,6 +103,39 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
         r2 = uint8(uint256(keccak256(abi.encodePacked(seed, uint8(2)))) % SYMBOLS);
     }
 
+    // ---------------------------------------------------------------- player
+
+    /// @notice Wager `amount` tokens (caller must have approved this contract). The result is
+    ///         decided by the hash of the next block; call `settle(id)` once it exists.
+    /// @return id The spin id to settle.
+    function placeBet(uint256 amount) external nonReentrant whenNotPaused returns (uint256 id) {
+        if (amount < minBet) revert BetTooSmall();
+        if (amount > maxBet()) revert BetTooLarge();
+
+        uint256 before = token.balanceOf(address(this));
+        token.safeTransferFrom(msg.sender, address(this), amount);
+        uint256 credited = token.balanceOf(address(this)) - before;
+        if (credited < minBet) revert BetTooSmall();
+        if (credited > amount) revert BetTooLarge(); // never reserve more than was checked against maxBet
+
+        id = nextSpinId++;
+        uint64 target = uint64(block.number + 1);
+        spins[id] = Spin({player: msg.sender, amount: uint96(credited), targetBlock: target, settled: false});
+        locked += credited * MAX_MULTIPLIER;
+        emit SpinPlaced(id, msg.sender, credited, target);
+    }
+
+    // ---------------------------------------------------------------- owner
+
+    /// @notice Stop new bets (a found bug, a drained bankroll). Settling is never paused.
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     // ---------------------------------------------------------------- internal
 
     function _setLimits(uint256 minBet_, uint256 maxBetCap_) internal {
