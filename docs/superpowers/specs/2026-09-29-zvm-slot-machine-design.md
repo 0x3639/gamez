@@ -287,8 +287,10 @@ gamez/                       # github.com/0x3639/gamez
 3. `hardhat run scripts/deploy.ts --network zvmDevnet` → address written to
    `web/src/deployment.json`.
 4. Verify via the explorer API; confirm the address page shows "Verified".
-5. `scripts/fund.ts`: wrap 50 ZNN, approve, `fund(50e18)`. Max bet becomes
-   0.5 wZNN. The remaining ZNN pays gas.
+5. `scripts/fund.js`: `BANKROLL=200` wraps 200 ZNN (or `WRAP=<znn>` to wrap
+   less and fund from wZNN already held), approves, and calls `fund`. The
+   0.5 wZNN cap binds well below 200/40, so the max bet is 0.5 wZNN. The
+   remaining ZNN pays gas.
 6. Push to `0x3639/gamez` (already created, empty), enable Pages with the
    GitHub Actions source, set the custom domain; `web/public/CNAME` =
    `gamez.0x3639.com`. The workflow builds `web/` on every push to `main`.

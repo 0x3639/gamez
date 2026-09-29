@@ -1,5 +1,5 @@
 // Usage: npx hardhat run scripts/fund.js --network zvmDevnet
-//   env FAUCET_REQUESTS=12  (5 ZNN each)   env BANKROLL=50  (wZNN to fund)   env FAUCET_ONLY=1
+//   env FAUCET_REQUESTS=12  (5 ZNN each)   env BANKROLL=50  (wZNN to fund)   env WRAP=<znn> (default BANKROLL; 0 = use held wZNN)   env FAUCET_ONLY=1
 const { ethers } = require("hardhat");
 const { DEVNET, readDeployment, faucet, sleep, requireDevnet, WETH_ABI } = require("./lib/devnet");
 
