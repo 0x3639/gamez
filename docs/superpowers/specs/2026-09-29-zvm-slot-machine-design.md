@@ -47,9 +47,10 @@ chain id.
 
 ## Contract: `SlotMachine.sol`
 
-Solidity 0.8.x, version pinned to one listed by the devnet verifier. No
-external dependencies: a minimal `IERC20` interface and an inline reentrancy
-guard. No proxy, no pause.
+Solidity 0.8.x, version pinned to one listed by the devnet verifier. Built on
+audited OpenZeppelin v5 primitives only: `SafeERC20`, `ReentrancyGuard`,
+`Ownable2Step`, `Pausable`. No proxy, no delegatecall, no selfdestruct, no
+assembly, no `tx.origin`.
 
 ### State
 
@@ -58,6 +59,7 @@ guard. No proxy, no pause.
 - `uint256 public minBet` — initial 0.1 tokens (1e17).
 - `uint256 public constant MAX_MULTIPLIER = 40`.
 - `uint256 public locked` — sum of `amount * MAX_MULTIPLIER` for unsettled spins.
+- `uint256 public maxBetCap` — owner-set absolute ceiling per spin (initial 5 tokens), on top of the bankroll-derived limit.
 - `uint256 public nextSpinId` — starts at 1.
 - `mapping(uint256 => Spin) public spins` where
   `Spin { address player; uint96 amount; uint64 targetBlock; bool settled; }`.
@@ -66,8 +68,10 @@ guard. No proxy, no pause.
 
 `placeBet(uint256 amount) returns (uint256 id)`
 
-1. `amount >= minBet` and `amount <= maxBet()`.
-2. `token.transferFrom(msg.sender, this, amount)` must return true.
+1. Not paused. `amount >= minBet`, `amount <= maxBet()`, `amount <= type(uint96).max`.
+2. `SafeERC20.safeTransferFrom(msg.sender, this, amount)`; the amount credited
+   is measured as balance-after minus balance-before, and the spin records that
+   credited amount (fee-on-transfer safe; a no-op for wZNN).
 3. Record `Spin{player, amount, targetBlock = block.number + 1, settled = false}`.
 4. `locked += amount * MAX_MULTIPLIER`.
 5. Emit `SpinPlaced(id, player, amount, targetBlock)`.
@@ -80,10 +84,11 @@ guard. No proxy, no pause.
    - If `h == 0` the block is older than 256 blocks: the bet is forfeited.
      Emit `SpinExpired(id, player, amount)` and return. Tokens stay in the
      bankroll.
-4. `bytes32 seed = keccak256(abi.encodePacked(h, block.prevrandao, id))`.
+4. `bytes32 seed = keccak256(abi.encodePacked(h, id))`. Nothing from the
+   settle block goes into the seed (see Security: settle-block shopping).
 5. Reels: `r0 = uint8(seed[0]) % 6`, `r1 = uint8(seed[1]) % 6`, `r2 = uint8(seed[2]) % 6`.
 6. `payout = amount * multiplier(r0, r1, r2) / 10` (multipliers stored ×10).
-7. If `payout > 0`, `token.transfer(player, payout)` must return true.
+7. If `payout > 0`, `SafeERC20.safeTransfer(player, payout)`.
 8. Emit `SpinSettled(id, player, amount, r0, r1, r2, payout)`.
 
 Reservations use `MAX_MULTIPLIER` (40×) so the bankroll can never owe more than
@@ -106,8 +111,8 @@ Return to player = (40 + 20 + 32 + 117) / 216 = 96.8%.
 
 ### Views
 
-- `maxBet()` = `(token.balanceOf(this) - locked) / MAX_MULTIPLIER`; 0 if the
-  balance is below `locked`.
+- `maxBet()` = `min(maxBetCap, (token.balanceOf(this) - locked) / MAX_MULTIPLIER)`;
+  0 if the balance is below `locked`.
 - `bankroll()` = `token.balanceOf(this)`.
 - `canSettle(id)` = exists, unsettled, `block.number > targetBlock`.
 
@@ -116,8 +121,11 @@ Return to player = (40 + 20 + 32 + 117) / 216 = 96.8%.
 - `fund(uint256 amount)` — `transferFrom(owner)` into the bankroll (anyone may
   call; it only adds tokens).
 - `withdraw(uint256 amount)` — owner only; `amount <= balance - locked`.
-- `setMinBet(uint256)` — owner only.
-- `transferOwnership(address)` — owner only, non-zero.
+- `setLimits(uint256 minBet, uint256 maxBetCap)` — owner only; `0 < minBet <= maxBetCap`.
+- `pause()` / `unpause()` — owner only. Pause blocks `placeBet` only. `settle`
+  always works so players are never locked out of a payout.
+- Ownership via `Ownable2Step`: the new owner must accept, so a typo cannot
+  orphan the contract. Renouncing is disabled.
 
 ### Events
 
@@ -128,8 +136,47 @@ Return to player = (40 + 20 + 32 + 117) / 216 = 96.8%.
 
 ### Errors
 
-Custom errors: `BetTooSmall`, `BetTooLarge`, `TransferFailed`, `UnknownSpin`,
-`AlreadySettled`, `TooEarly`, `NotOwner`, `InsufficientUnlocked`, `ZeroAddress`.
+Custom errors: `BetTooSmall`, `BetTooLarge`, `UnknownSpin`, `AlreadySettled`,
+`TooEarly`, `InsufficientUnlocked`, `BadLimits`. Access and reentrancy errors
+come from the OpenZeppelin bases.
+
+## Security
+
+Threat model: an anonymous, well-funded attacker who can send arbitrary
+transactions, deploy contracts, read all state, and simulate any call before
+sending it. They are not the block producer. The contract holds the bankroll
+and all unsettled bets; the goal is that neither can be taken except through a
+fair spin.
+
+| Threat | Mitigation |
+|---|---|
+| Reentrancy through the token | `nonReentrant` on `placeBet`, `settle`, `withdraw`, `fund`; checks-effects-interactions everywhere; wZNN is a plain WETH9 with no hooks. |
+| Settle-block shopping: settler waits for a settle block whose data yields a win | Seed = `keccak256(blockhash(targetBlock), id)` only. The outcome is fixed once the target block exists; when you settle cannot change it. |
+| Free option: see a losing result, then avoid the loss | Bet is taken at placement. Not settling forfeits it. Expired spins (target block older than 256) are forfeited, never refunded. |
+| Same-block settle: `blockhash(block.number)` is 0 | `settle` requires `block.number > targetBlock`, so 0 can only mean genuine expiry. |
+| Target-block choice by the player | `targetBlock` is always `block.number + 1`, not a parameter. |
+| Many bets in one block sharing a target block | Each spin id is in the seed, so outcomes differ; each reserves its own 40× liability. |
+| Bankroll insolvency / owner rug of live bets | `locked` reserves 40× every open bet at placement; `withdraw` and `maxBet` only see unreserved balance; owner cannot touch reserved funds or any spin. |
+| Whale drain via variance | `maxBetCap` absolute ceiling plus the bankroll-derived cap (bankroll/40). |
+| Non-standard token behaviour | `SafeERC20` handles missing return values; credited amount measured by balance delta. |
+| Arithmetic | Solidity 0.8 checked math; `amount` bounded to `uint96`; multipliers are small constants. |
+| Ownership mistakes | `Ownable2Step` accept flow; `renounceOwnership` overridden to revert. |
+| Bug found after launch | `pause` stops new bets only; settlements and payouts keep working. |
+| Unbounded loops / storage DoS | No loops over user data; spins are keyed by id. |
+| Compiler / toolchain | Pinned solc from the verifier list, optimizer on with fixed runs, source verified on the explorer so the deployed bytecode is auditable. |
+
+Accepted, documented residual risks (devnet):
+
+- The block producer (the ZVM sequencer) could influence the target block's
+  hash. No on-chain randomness on this chain resists that; a VRF would be
+  needed for real money.
+- Anyone may call `settle` for anyone. The payout always goes to the recorded
+  player, so this is a convenience, not a risk.
+
+Assurance steps in the plan: unit tests for every path above, a randomized
+invariant test (`locked <= balance` and `sum(payouts) <= sum(reserved)` across
+thousands of random place/settle/withdraw sequences), Slither static analysis
+with zero high/medium findings, and a final read-through against this table.
 
 ### Tests (Hardhat, mocha)
 
@@ -145,7 +192,13 @@ Using a local mock ERC-20 (WETH9-style `deposit()` so the flow mirrors devnet):
 - settle by a third party works.
 - expiry: after 257 blocks settle emits `SpinExpired`, pays nothing, releases
   the reservation.
-- owner: withdraw is capped by `locked`; non-owner reverts; ownership transfer.
+- owner: withdraw is capped by `locked`; non-owner reverts; two-step ownership
+  transfer; pause blocks `placeBet` but not `settle`; `setLimits` validation.
+- security: reentrant token mock cannot re-enter `settle`/`placeBet`; settling
+  in different blocks after the target yields the same reels (no settle-block
+  shopping); fee-on-transfer mock credits the received amount.
+- invariants: randomized sequences keep `locked <= balance` and never let a
+  payout exceed the bankroll.
 
 Determinism in tests comes from reading the emitted reels, not predicting
 them.
