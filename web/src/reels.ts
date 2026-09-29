@@ -1,7 +1,17 @@
 import { SYMBOLS } from "./logic";
 
-const STRIP = [...SYMBOLS, ...SYMBOLS, ...SYMBOLS]; // three copies so the strip can scroll
+const COPIES = 7;                       // enough strip to decelerate through five full cycles
+const STRIP = Array.from({ length: COPIES }, () => SYMBOLS).flat();
+const IDLE_COPY = 1;                    // resting position lives in the second copy
+const STOP_COPY = 6;                    // the stop travels from copy 0 to copy 6: 36 cells of slow-down
+const STOP_MS = 2400;                   // per-reel deceleration
+const STAGGER_MS = 900;                 // left to right
+const SETTLE_PAUSE_MS = 150;
 const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function cellOffset(index: number): string {
+  return `translateY(calc(-1 * ${index} * var(--cell)))`;
+}
 
 export class Reels {
   private cols: HTMLElement[];
@@ -37,17 +47,38 @@ export class Reels {
     });
   }
 
-  /** Stop each reel on its symbol, left to right, resolving after the last one lands. */
+  /**
+   * Stop each reel on its symbol, left to right, resolving after the last one lands.
+   * Each reel jumps (invisibly, mid-blur) to the top copy of the strip and then eases
+   * through six cycles to its symbol, so the slow-down is long and readable.
+   */
   async stopOn(reels: [number, number, number]): Promise<void> {
-    for (let i = 0; i < 3; i++) {
-      const col = this.cols[i];
+    const motion = !reduced();
+    const stops = this.cols.map((col, i) => new Promise<void>((done) => {
+      setTimeout(() => {
+        const strip = col.firstElementChild as HTMLElement;
+        col.classList.remove("spinning");
+        if (!motion) {
+          strip.style.transition = "none";
+          strip.style.transform = cellOffset(IDLE_COPY * 6 + reels[i]);
+          done();
+          return;
+        }
+        strip.style.transition = "none";
+        strip.style.transform = cellOffset(reels[i]);          // copy 0, same symbol
+        void strip.offsetHeight;                               // commit the jump before animating
+        strip.style.transition = `transform ${STOP_MS}ms cubic-bezier(.12, .8, .2, 1)`;
+        strip.style.transform = cellOffset(STOP_COPY * 6 + reels[i]);
+        setTimeout(done, STOP_MS + SETTLE_PAUSE_MS);
+      }, motion ? i * STAGGER_MS : 0);
+    }));
+    await Promise.all(stops);
+    // Park on the idle copy without motion so a later spin animation starts from a known spot.
+    this.cols.forEach((col, i) => {
       const strip = col.firstElementChild as HTMLElement;
-      col.classList.remove("spinning");
-      // middle copy of the strip: index 6 + symbol, cell height from CSS var
-      strip.style.transition = reduced() ? "none" : "transform 600ms cubic-bezier(.2,.9,.3,1.2)";
-      strip.style.transform = `translateY(calc(-1 * (${6 + reels[i]}) * var(--cell)))`;
-      await new Promise((r) => setTimeout(r, reduced() ? 0 : 650));
-    }
+      strip.style.transition = "none";
+      strip.style.transform = cellOffset(IDLE_COPY * 6 + reels[i]);
+    });
   }
 
   markWin(): void { this.cols.forEach((c) => c.classList.add("win")); }
@@ -57,7 +88,7 @@ export class Reels {
       c.classList.remove("spinning", "win");
       const strip = c.firstElementChild as HTMLElement;
       strip.style.transition = "none";
-      strip.style.transform = `translateY(calc(-1 * (${6 + ((i * 2) % 6)}) * var(--cell)))`;
+      strip.style.transform = cellOffset(IDLE_COPY * 6 + ((i * 2) % 6));
     });
   }
 }

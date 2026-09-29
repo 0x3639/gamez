@@ -14,6 +14,8 @@ import { isDevnet } from "./logic";
 const app = $("#app");
 app.innerHTML = layout(ADDRESSES.slot);
 const reels = new Reels($("#reels"));
+declare global { interface Window { __gamezReels?: Reels } }
+if (import.meta.env.DEV) window.__gamezReels = reels; // manual animation checks in `npm run dev`
 
 let player: Address | null = null;
 let busy = false;

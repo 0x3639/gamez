@@ -105,7 +105,7 @@ input:focus-visible { outline-offset: 0; border-color: var(--accent); }
 .reels::after { right: 0; border-right: 8px solid var(--accent); }
 
 .reel { height: var(--cell); overflow: hidden; border-radius: 8px; background: #120f0c; }
-.strip { will-change: transform; }
+.strip { will-change: transform; transition: filter 600ms ease-out; }
 .strip .cell { height: var(--cell); display: grid; place-items: center; font-size: calc(var(--cell) * .55); }
 .strip .cell img { display: block; width: calc(var(--cell) * .82); height: calc(var(--cell) * .82); pointer-events: none; user-select: none; }
 .reel.spinning .strip { animation: spin 350ms linear infinite; filter: blur(1.5px); }
