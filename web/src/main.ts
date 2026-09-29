@@ -19,45 +19,57 @@ let player: Address | null = null;
 let busy = false;
 let state: State = { znn: 0n, wznn: 0n, allowance: 0n, minBet: 0n, maxBet: 0n, bankroll: 0n, paused: false, block: 0n };
 
-/** Read contract state; if the machine is unreachable, keep the last known state and say so instead of breaking the page. */
-async function readState(who: Address | null): Promise<State> {
-  try {
-    return await readChainState(who);
-  } catch {
-    setStatus("Can't reach the machine contract right now.", "error");
-    return state;
-  }
-}
+let unreachable = false;
+let refreshSeq = 0;
 
-state = await readState(null);
-renderState(state, null);
-
+/** Re-read chain state and repaint. The last-started refresh wins; a failed read keeps the last good UI. */
 async function refresh(): Promise<void> {
-  player = await currentAccount();
-  const chainId = await currentChainId();
-  const onDevnet = isDevnet(chainId);
-  $("#net").textContent = player ? (onDevnet ? `ZVM devnet · ${short(player)}` : `wrong network · ${short(player)}`) : "not connected";
-  $("#net").className = `pill ${player && !onDevnet ? "warn" : ""}`;
-  $("#connect").textContent = player ? (onDevnet ? "Connected" : "Switch to ZVM devnet") : "Connect wallet";
-  state = await readState(player && onDevnet ? player : null);
-  renderState(state, player && onDevnet ? player : null);
-  const enabled = !!player && onDevnet && !busy;
-  for (const id of ["#spin", "#faucet", "#wrap", "#unwrap"]) ($(id) as HTMLButtonElement).disabled = !enabled;
-  if (player && onDevnet) {
-    renderHistory(await recentResults(player));
-    const open = await findOpenSpins(player);
+  const seq = ++refreshSeq;
+  try {
+    const acct = await currentAccount();
+    const chainId = await currentChainId();
+    if (seq !== refreshSeq) return;
+    const onDevnet = isDevnet(chainId);
+    const active = acct && onDevnet ? acct : null;
+    const st = await readChainState(active);
+    if (seq !== refreshSeq) return;
+    let rows: Awaited<ReturnType<typeof recentResults>> = [];
+    let open: Awaited<ReturnType<typeof findOpenSpins>> = [];
+    if (active) {
+      rows = await recentResults(active);
+      if (seq !== refreshSeq) return;
+      open = await findOpenSpins(active);
+      if (seq !== refreshSeq) return;
+    }
+
+    player = acct;
+    state = st;
+    $("#net").textContent = player ? (onDevnet ? `ZVM devnet · ${short(player)}` : `wrong network · ${short(player)}`) : "not connected";
+    $("#net").className = `pill ${player && !onDevnet ? "warn" : ""}`;
+    $("#connect").textContent = player ? (onDevnet ? "Connected" : "Switch to ZVM devnet") : "Connect wallet";
+    renderState(state, active);
+    const enabled = !!active && !busy;
+    for (const id of ["#spin", "#faucet", "#wrap", "#unwrap"]) ($(id) as HTMLButtonElement).disabled = !enabled;
+    renderHistory(rows);
     const box = $("#resume");
     if (open.length && !busy) {
       const o = open[0];
       box.classList.remove("hidden");
       box.innerHTML = `You have an unsettled spin of ${formatZnn(o.amount)} wZNN. <button id="settleopen" class="btn">Settle it</button>`;
-      $("#settleopen").addEventListener("click", () => guard(() => resumeSpin(o.id, o.targetBlock, hooks)));
+      $("#settleopen").addEventListener("click", () => guard(async () => {
+        $("#result").textContent = "";
+        reels.start();
+        await resumeSpin(o.id, o.targetBlock, hooks);
+      }));
     } else {
       box.classList.add("hidden");
       box.innerHTML = "";
     }
-  } else {
-    renderHistory([]);
+    if (unreachable && !busy) { unreachable = false; setStatus(""); }
+  } catch {
+    if (seq !== refreshSeq) return;
+    unreachable = true;
+    if (!busy) setStatus("Can't reach the machine contract right now.", "error");
   }
 }
 

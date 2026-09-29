@@ -5,7 +5,7 @@ import { currentAccount, ensureChain } from "./wallet";
 export type SpinHooks = {
   status(msg: string): void;
   placed(id: bigint, txHash: `0x${string}`): void;
-  settled(outcome: SettleOutcome): void;
+  settled(outcome: SettleOutcome): Promise<void> | void;
 };
 
 /** approve (once) → placeBet → wait for target block → settle. Throws plain-English errors. */
@@ -28,7 +28,7 @@ export async function runSpin(bet: bigint, hooks: SpinHooks): Promise<void> {
   await waitForBlockAfter(targetBlock);
   hooks.status("Confirm settle in your wallet…");
   const outcome = await settle(id);
-  hooks.settled(outcome);
+  await hooks.settled(outcome);
 }
 
 /** Settle a spin left over from an earlier session. */
@@ -37,5 +37,5 @@ export async function resumeSpin(id: bigint, targetBlock: bigint, hooks: SpinHoo
   hooks.status("Waiting for the target block…");
   await waitForBlockAfter(targetBlock);
   hooks.status("Confirm settle in your wallet…");
-  hooks.settled(await settle(id));
+  await hooks.settled(await settle(id));
 }

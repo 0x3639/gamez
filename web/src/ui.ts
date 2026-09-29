@@ -30,7 +30,7 @@ export function layout(slotAddress: string): string {
         <div id="limits" class="limits"></div>
         <button id="spin" class="btn spin" type="submit" disabled>SPIN</button>
       </form>
-      <div id="status" class="status"></div>
+      <div id="status" class="status" role="status"></div>
       <div id="resume" class="resume hidden"></div>
     </section>
 
@@ -98,8 +98,40 @@ export function setStatus(msg: string, kind: "" | "error" | "ok" = ""): void {
   el.className = `status ${kind}`;
 }
 
+const CONTRACT_ERRORS: [string, string][] = [
+  ["TooEarly", "Too early to settle, wait for the next block"],
+  ["AlreadySettled", "This spin was already settled"],
+  ["UnknownSpin", "Unknown spin"],
+  ["BetTooSmall", "Bet is below the minimum"],
+  ["BetTooLarge", "Bet is above the current maximum"],
+  ["EnforcedPause", "The machine is paused"],
+  ["InsufficientUnlocked", "Not enough unreserved bankroll"],
+  ["ERC20InsufficientAllowance", "Approve wZNN first"],
+  ["ERC20InsufficientBalance", "Not enough wZNN, wrap more first"],
+];
+
+type ErrLike = { name?: string; code?: number; message?: string; shortMessage?: string; details?: string; cause?: unknown };
+
+/** Every text field on the error and its nested causes, joined for matching. */
+function errorTexts(e: unknown): string {
+  const parts: string[] = [];
+  let cur = e as ErrLike | undefined;
+  for (let depth = 0; cur && typeof cur === "object" && depth < 6; depth++) {
+    for (const k of ["name", "shortMessage", "message", "details"] as const) {
+      if (typeof cur[k] === "string") parts.push(cur[k] as string);
+    }
+    cur = cur.cause as ErrLike | undefined;
+  }
+  return parts.join("\n");
+}
+
 export function errorText(e: unknown): string {
-  const anyE = e as { shortMessage?: string; message?: string; code?: number };
-  if (anyE?.code === 4001 || /rejected/i.test(anyE?.message ?? "")) return "Cancelled in the wallet";
+  const anyE = e as ErrLike;
+  const all = errorTexts(e);
+  const code = anyE?.code ?? (anyE?.cause as ErrLike | undefined)?.code;
+  if (code === 4001 || /user rejected|rejected the request|rejected/i.test(all)) return "Cancelled in the wallet";
+  if (/ChainMismatch/i.test(all) || (/chain/i.test(all) && /mismatch|does not match/i.test(all))) return "Switch to ZVM devnet to play";
+  if (/insufficient funds/i.test(all)) return "Not enough ZNN to pay for gas";
+  for (const [name, text] of CONTRACT_ERRORS) if (all.includes(name)) return text;
   return anyE?.shortMessage ?? anyE?.message ?? String(e);
 }
