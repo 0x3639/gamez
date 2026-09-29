@@ -20,6 +20,8 @@ let busy = false;
 let state: State = { znn: 0n, wznn: 0n, allowance: 0n, minBet: 0n, maxBet: 0n, bankroll: 0n, paused: false, block: 0n };
 
 let unreachable = false;
+let lastRows: Awaited<ReturnType<typeof recentResults>> = [];
+let lastRowsFor: Address | null = null;
 let refreshSeq = 0;
 
 /** Re-read chain state and repaint. The last-started refresh wins; a failed read keeps the last good UI. */
@@ -33,10 +35,14 @@ async function refresh(): Promise<void> {
     const active = acct && onDevnet ? acct : null;
     const st = await readChainState(active);
     if (seq !== refreshSeq) return;
-    let rows: Awaited<ReturnType<typeof recentResults>> = [];
+    let rows = lastRowsFor === active ? lastRows : [];
     let open: Awaited<ReturnType<typeof findOpenSpins>> = [];
     if (active) {
-      rows = await recentResults(active);
+      try {
+        rows = await recentResults(active);
+      } catch {
+        // keep the last successfully rendered history rather than clearing it
+      }
       if (seq !== refreshSeq) return;
       open = await findOpenSpins(active);
       if (seq !== refreshSeq) return;
@@ -50,12 +56,17 @@ async function refresh(): Promise<void> {
     renderState(state, active);
     const enabled = !!active && !busy;
     for (const id of ["#spin", "#faucet", "#wrap", "#unwrap"]) ($(id) as HTMLButtonElement).disabled = !enabled;
+    lastRows = rows;
+    lastRowsFor = active;
     renderHistory(rows);
     const box = $("#resume");
     if (open.length && !busy) {
       const o = open[0];
       box.classList.remove("hidden");
-      box.innerHTML = `You have an unsettled spin of ${formatZnn(o.amount)} wZNN. <button id="settleopen" class="btn">Settle it</button>`;
+      const expired = o.targetBlock + 256n < st.block;
+      box.innerHTML = expired
+        ? `This spin expired (bet forfeited). Settle it to clear it. <button id="settleopen" class="btn">Settle it</button>`
+        : `You have an unsettled spin of ${formatZnn(o.amount)} wZNN. <button id="settleopen" class="btn">Settle it</button>`;
       $("#settleopen").addEventListener("click", () => guard(async () => {
         $("#result").textContent = "";
         reels.start();
