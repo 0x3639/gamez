@@ -1,0 +1,19 @@
+{
+  "name": "gamez-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "viem": "^2.57.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0"
+  }
+}
