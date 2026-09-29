@@ -34,13 +34,21 @@ describe("SlotMachine.settle", () => {
   it("reverts TooEarly in the placement block and in the target block", async () => {
     const { alice, slot } = await setup();
     // automine: placeBet is block N, target N+1. Disable automine to test the same-block case.
+    let p, s;
     await ethers.provider.send("evm_setAutomine", [false]);
-    const p = slot.connect(alice).placeBet(E(1));
-    const s = slot.connect(alice).settle(1n);
-    await mine(1);
-    await ethers.provider.send("evm_setAutomine", [true]);
+    try {
+      p = slot.connect(alice).placeBet(E(1));
+      s = slot.connect(alice).settle(1n);
+      await mine(1);
+    } finally {
+      await ethers.provider.send("evm_setAutomine", [true]);
+    }
     await p;
-    await expect(s).to.be.reverted; // same block as placement: TooEarly
+    // Same block as placement, mined right after placeBet. The tx was accepted and reverted when mined, so
+    // revertedWithCustomError (which needs a rejected promise) cannot see it; pin the reason from the trace.
+    await expect(s).to.be.reverted;
+    const trace = await ethers.provider.send("debug_traceTransaction", [(await s).hash]);
+    expect(trace.returnValue).to.equal(slot.interface.getError("TooEarly").selector);
     await expect(slot.settle(1n)).to.be.revertedWithCustomError(slot, "TooEarly"); // this tx mines in the target block
     expect(await slot.canSettle(1n)).to.equal(false);
   });
@@ -118,11 +126,14 @@ describe("SlotMachine.settle", () => {
 
   it("many spins in one block get independent outcomes and reservations", async () => {
     const { alice, slot } = await setup();
-    await ethers.provider.send("evm_setAutomine", [false]);
     const txs = [];
-    for (let i = 0; i < 5; i++) txs.push(slot.connect(alice).placeBet(E(0.5)));
-    await mine(1);
-    await ethers.provider.send("evm_setAutomine", [true]);
+    await ethers.provider.send("evm_setAutomine", [false]);
+    try {
+      for (let i = 0; i < 5; i++) txs.push(slot.connect(alice).placeBet(E(0.5)));
+      await mine(1);
+    } finally {
+      await ethers.provider.send("evm_setAutomine", [true]);
+    }
     await Promise.all(txs);
     expect(await slot.locked()).to.equal(E(0.5) * 40n * 5n);
     await mine(1);
@@ -136,30 +147,48 @@ describe("SlotMachine.settle", () => {
     expect(await slot.locked()).to.equal(0n);
   });
 
-  it("blocks re-entrant settle and placeBet from inside the payout transfer", async () => {
-    const { owner, alice, tok, slot, slotAddr } = await setup("ReentrantToken");
-    // Force a winning spin so a payout transfer happens: try ids until one pays.
-    let id, targetBlock;
+  it("blocks re-entrant settle and placeBet from inside the token transfers (only the guard can stop them)", async () => {
+    const { alice, tok, slot, slotAddr } = await setup("ReentrantToken");
+    const guardSelector = ethers.id("ReentrancyGuardReentrantCall()").slice(0, 10);
+
+    // Spin A: keep placing until one pays, so settle(A) makes a payout transfer (the re-entry point).
+    let idA, targetBlock;
     for (let i = 0; i < 40; i++) {
-      ({ id, targetBlock } = await place(slot, alice, E(0.1)));
+      ({ id: idA, targetBlock } = await place(slot, alice, E(0.1)));
       await mine(1);
       const blk = await ethers.provider.getBlock(Number(targetBlock));
-      const [a, b, c] = await slot.reelsFor(blk.hash, id);
+      const [a, b, c] = await slot.reelsFor(blk.hash, idA);
       if ((await slot.multiplierX10(a, b, c)) > 0n) break;
-      await slot.settle(id);
+      await slot.settle(idA);
     }
-    await tok.arm(slotAddr, slot.interface.encodeFunctionData("settle", [id]));
-    await expect(slot.settle(id)).to.emit(slot, "SpinSettled");
+    // Spin B: unsettled and already settleable, so a re-entrant settle(B) would succeed without the guard.
+    const { id: idB } = await place(slot, alice, E(0.1));
+    await mine(2); // eth_call sees block.number == head, so head must be past B's target for canSettle
+    expect(await slot.canSettle(idB)).to.equal(true);
+
+    await tok.arm(slotAddr, slot.interface.encodeFunctionData("settle", [idB]));
+    await expect(slot.settle(idA)).to.emit(slot, "SpinSettled");
     expect(await tok.reentryAttempts()).to.equal(1n);
     expect(await tok.lastReentryOk()).to.equal(false);
+    expect(await tok.lastReentryData()).to.equal(guardSelector);
+    expect((await slot.spins(idB)).settled).to.equal(false);
 
-    // and placeBet re-entered from inside placeBet's own transferFrom
+    await tok.disarm();
+    await expect(slot.settle(idB)).to.emit(slot, "SpinSettled");
+    expect((await slot.spins(idB)).settled).to.equal(true);
+
+    // placeBet re-entered from inside placeBet's own transferFrom. The token holds funds and an
+    // allowance toward the slot machine, so without the guard the inner placeBet would succeed.
+    const tokAddr = await tok.getAddress();
+    await tok.mint(tokAddr, E(1));
+    await tok.selfApprove(slotAddr);
     await tok.arm(slotAddr, slot.interface.encodeFunctionData("placeBet", [E(0.1)]));
     const before = await slot.nextSpinId();
     await slot.connect(alice).placeBet(E(0.1));
     expect(await slot.nextSpinId()).to.equal(before + 1n); // exactly one spin created
+    expect(await tok.reentryAttempts()).to.equal(2n);
     expect(await tok.lastReentryOk()).to.equal(false);
-    void owner;
+    expect(await tok.lastReentryData()).to.equal(guardSelector);
   });
 
   it("reels can be recomputed off-chain from the block hash and id", async () => {
