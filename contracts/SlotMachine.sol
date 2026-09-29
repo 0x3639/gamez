@@ -162,6 +162,23 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
         _unpause();
     }
 
+    /// @notice Add to the bankroll. Anyone may top it up.
+    function fund(uint256 amount) external nonReentrant {
+        token.safeTransferFrom(msg.sender, address(this), amount);
+        emit Funded(msg.sender, amount);
+    }
+
+    /// @notice Withdraw bankroll that is not reserved for open spins.
+    function withdraw(uint256 amount) external onlyOwner nonReentrant {
+        if (amount > unlockedBalance()) revert InsufficientUnlocked();
+        emit Withdrawn(msg.sender, amount);
+        token.safeTransfer(msg.sender, amount);
+    }
+
+    function setLimits(uint256 minBet_, uint256 maxBetCap_) external onlyOwner {
+        _setLimits(minBet_, maxBetCap_);
+    }
+
     // ---------------------------------------------------------------- internal
 
     function _setLimits(uint256 minBet_, uint256 maxBetCap_) internal {
