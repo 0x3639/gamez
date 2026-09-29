@@ -29,3 +29,9 @@ export const ADDRESSES = {
 } as const;
 
 export const BLOCK_TIME_MS = 10_000;
+
+/** The devnet relayer rejects priority fees under 50 gwei; real devnet txs use 100 gwei. */
+export const FEES = {
+  maxPriorityFeePerGas: 100_000_000_000n, // 100 gwei
+  maxFeePerGas: 100_100_000_000n,         // 100.1 gwei (base fee is ~0.001 gwei)
+} as const;

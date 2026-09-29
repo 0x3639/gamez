@@ -1,6 +1,6 @@
 import { parseEventLogs, type Address, type Hash } from "viem";
 import { SLOT_ABI, WETH_ABI } from "./abi";
-import { ADDRESSES, BLOCK_TIME_MS } from "./config";
+import { ADDRESSES, BLOCK_TIME_MS, FEES } from "./config";
 import { publicClient, walletClient } from "./wallet";
 
 export type State = {
@@ -48,24 +48,24 @@ async function confirmed(hash: Hash): Promise<Hash> {
 
 export async function wrap(amount: bigint): Promise<Hash> {
   const a = await account();
-  return confirmed(await walletClient().writeContract({ ...wznn, functionName: "deposit", value: amount, account: a }));
+  return confirmed(await walletClient().writeContract({ ...wznn, functionName: "deposit", value: amount, account: a, ...FEES }));
 }
 
 export async function unwrap(amount: bigint): Promise<Hash> {
   const a = await account();
-  return confirmed(await walletClient().writeContract({ ...wznn, functionName: "withdraw", args: [amount], account: a }));
+  return confirmed(await walletClient().writeContract({ ...wznn, functionName: "withdraw", args: [amount], account: a, ...FEES }));
 }
 
 export async function approveMax(): Promise<Hash> {
   const a = await account();
   return confirmed(
-    await walletClient().writeContract({ ...wznn, functionName: "approve", args: [ADDRESSES.slot, 2n ** 256n - 1n], account: a }),
+    await walletClient().writeContract({ ...wznn, functionName: "approve", args: [ADDRESSES.slot, 2n ** 256n - 1n], account: a, ...FEES }),
   );
 }
 
 export async function placeBet(amount: bigint): Promise<{ id: bigint; targetBlock: bigint; txHash: Hash }> {
   const a = await account();
-  const hash = await walletClient().writeContract({ ...slot, functionName: "placeBet", args: [amount], account: a });
+  const hash = await walletClient().writeContract({ ...slot, functionName: "placeBet", args: [amount], account: a, ...FEES });
   const rc = await publicClient.waitForTransactionReceipt({ hash });
   if (rc.status !== "success") throw new Error("Bet was rejected by the contract");
   const [ev] = parseEventLogs({ abi: SLOT_ABI, eventName: "SpinPlaced", logs: rc.logs });
@@ -79,7 +79,7 @@ export type SettleOutcome =
 
 export async function settle(id: bigint): Promise<SettleOutcome> {
   const a = await account();
-  const hash = await walletClient().writeContract({ ...slot, functionName: "settle", args: [id], account: a });
+  const hash = await walletClient().writeContract({ ...slot, functionName: "settle", args: [id], account: a, ...FEES });
   const rc = await publicClient.waitForTransactionReceipt({ hash });
   if (rc.status !== "success") throw new Error("Settle was rejected by the contract");
   const [s] = parseEventLogs({ abi: SLOT_ABI, eventName: "SpinSettled", logs: rc.logs });
