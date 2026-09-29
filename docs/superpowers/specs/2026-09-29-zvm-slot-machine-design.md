@@ -86,7 +86,10 @@ assembly, no `tx.origin`.
      bankroll.
 4. `bytes32 seed = keccak256(abi.encodePacked(h, id))`. Nothing from the
    settle block goes into the seed (see Security: settle-block shopping).
-5. Reels: `r0 = uint8(seed[0]) % 6`, `r1 = uint8(seed[1]) % 6`, `r2 = uint8(seed[2]) % 6`.
+5. Reels: `seed = keccak256(abi.encodePacked(h, id))`; for `i` in 0..2,
+   `r_i = uint8(uint256(keccak256(abi.encodePacked(seed, uint8(i)))) % 6)`.
+   Reducing a 256-bit hash modulo 6 has a bias of about 2^-253, which is
+   negligible.
 6. `payout = amount * multiplier(r0, r1, r2) / 10` (multipliers stored ×10).
 7. If `payout > 0`, `SafeERC20.safeTransfer(player, payout)`.
 8. Emit `SpinSettled(id, player, amount, r0, r1, r2, payout)`.
@@ -161,6 +164,7 @@ fair spin.
 | Non-standard token behaviour | `SafeERC20` handles missing return values; credited amount measured by balance delta. |
 | Arithmetic | Solidity 0.8 checked math; `amount` bounded to `uint96`; multipliers are small constants. |
 | Ownership mistakes | `Ownable2Step` accept flow; `renounceOwnership` overridden to revert. |
+| Capacity hold: one max bet reserves the whole unreserved bankroll and an attacker delays settling to keep the machine "out of bankroll" | Anyone may settle any spin; the owner runs `npm run settle-open:devnet` (cron-able) to settle every settleable spin; keep the bankroll at least 3 × 40 × the intended max bet. |
 | Bug found after launch | `pause` stops new bets only; settlements and payouts keep working. |
 | Unbounded loops / storage DoS | No loops over user data; spins are keyed by id. |
 | Compiler / toolchain | Pinned solc from the verifier list, optimizer on with fixed runs, source verified on the explorer so the deployed bytecode is auditable. |
