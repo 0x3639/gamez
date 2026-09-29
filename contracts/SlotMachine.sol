@@ -125,6 +125,32 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
         emit SpinPlaced(id, msg.sender, credited, target);
     }
 
+    /// @notice Resolve spin `id` once its target block exists. Anyone may call; the payout always
+    ///         goes to the recorded player. If the target block is older than 256 blocks its hash
+    ///         is unavailable and the bet is forfeited (a refund would be a free option).
+    function settle(uint256 id) external nonReentrant {
+        Spin storage s = spins[id];
+        address player = s.player;
+        if (player == address(0)) revert UnknownSpin();
+        if (s.settled) revert AlreadySettled();
+        if (block.number <= s.targetBlock) revert TooEarly();
+
+        s.settled = true;
+        uint256 amount = s.amount;
+        locked -= amount * MAX_MULTIPLIER;
+
+        bytes32 h = blockhash(s.targetBlock);
+        if (h == bytes32(0)) {
+            emit SpinExpired(id, player, amount);
+            return;
+        }
+
+        (uint8 r0, uint8 r1, uint8 r2) = reelsFor(h, id);
+        uint256 payout = (amount * multiplierX10(r0, r1, r2)) / 10;
+        emit SpinSettled(id, player, amount, r0, r1, r2, payout);
+        if (payout > 0) token.safeTransfer(player, payout);
+    }
+
     // ---------------------------------------------------------------- owner
 
     /// @notice Stop new bets (a found bug, a drained bankroll). Settling is never paused.
