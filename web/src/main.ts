@@ -122,13 +122,15 @@ const hooks = {
     }
   },
   settled: async (o: SettleOutcome) => {
+    const prev = previewed;
+    previewed = null; // the spin is closed; a later unrelated failure must not print "Not settled yet"
     if (o.kind === "expired") {
       reels.showIdle();
       $("#result").innerHTML = `Spin expired, bet forfeited. <a href="${txLink(o.txHash)}" target="_blank" rel="noopener">tx ↗</a>`;
       setStatus("");
       return;
     }
-    const same = previewed?.kind === "result" && previewed.reels.every((r: number, i: number) => r === o.reels[i]);
+    const same = prev?.kind === "result" && prev.reels.every((r: number, i: number) => r === o.reels[i]);
     if (!same) { reels.start(); await reels.stopOn(o.reels); } // preview missing or (reorg) different: re-run the stop
     if (o.payout > 0n) {
       reels.markWin();
@@ -167,6 +169,7 @@ $("#connect").addEventListener("click", () => guard(async () => {
 $("#betform").addEventListener("submit", (ev) => {
   ev.preventDefault();
   guard(async () => {
+    previewed = null;
     const parsed = parseBet(($("#bet") as HTMLInputElement).value, state.minBet, state.maxBet);
     if (!parsed.ok) throw new Error(parsed.message);
     $("#result").textContent = "";
