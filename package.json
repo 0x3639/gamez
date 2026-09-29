@@ -1,0 +1,20 @@
+{
+  "name": "gamez",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Slot machine on the Zenon ZVM devnet",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:devnet": "hardhat run scripts/deploy.js --network zvmDevnet",
+    "verify:devnet": "hardhat run scripts/verify.js --network zvmDevnet",
+    "fund:devnet": "hardhat run scripts/fund.js --network zvmDevnet",
+    "smoke:devnet": "hardhat run scripts/smoke.js --network zvmDevnet"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.6.1",
+    "dotenv": "^17.2.0",
+    "hardhat": "^2.29.1"
+  }
+}
