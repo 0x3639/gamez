@@ -69,6 +69,9 @@ async function refresh(): Promise<void> {
         : `You have an unsettled spin of ${formatZnn(o.amount)} wZNN. <button id="settleopen" class="btn">Settle it</button>`;
       $("#settleopen").addEventListener("click", () => guard(async () => {
         $("#result").textContent = "";
+        previewed = null;
+        waitStarted = 0;
+        betLink = "";
         reels.start();
         await resumeSpin(o.id, o.amount, o.targetBlock, hooks);
       }));
@@ -86,18 +89,21 @@ async function refresh(): Promise<void> {
 
 let waitStarted = 0;
 let previewed: Preview | null = null;
+let betLink = "";
 
 const hooks = {
   status: (m: string) => setStatus(m),
   placed: (_id: bigint, txHash: `0x${string}`) => {
     previewed = null;
-    waitStarted = Date.now();
+    waitStarted = 0;
+    betLink = `<a href="${txLink(txHash)}" target="_blank" rel="noopener">bet ↗</a>`;
     reels.start();
-    $("#result").innerHTML = `<a href="${txLink(txHash)}" target="_blank" rel="noopener">bet placed ↗</a>`;
+    $("#result").innerHTML = betLink;
   },
   waiting: (target: bigint, current: bigint) => {
+    if (!waitStarted) waitStarted = Date.now();
     const secs = Math.round((Date.now() - waitStarted) / 1000);
-    $("#result").innerHTML = `Waiting for block ${target.toLocaleString()} <span class="muted">(chain is at ${current.toLocaleString()}, ${secs}s)</span>`;
+    $("#result").innerHTML = `Waiting for block ${target.toLocaleString()} <span class="muted">(chain is at ${current.toLocaleString()}, ${secs}s)</span>${betLink ? " · " + betLink : ""}`;
   },
   // The target block exists: show the result now, before the settle transaction is mined.
   preview: async (p: Preview) => {
@@ -123,7 +129,7 @@ const hooks = {
       return;
     }
     const same = previewed?.kind === "result" && previewed.reels.every((r: number, i: number) => r === o.reels[i]);
-    if (!same) await reels.stopOn(o.reels); // preview missing or (reorg) different: stop on the settled reels
+    if (!same) { reels.start(); await reels.stopOn(o.reels); } // preview missing or (reorg) different: re-run the stop
     if (o.payout > 0n) {
       reels.markWin();
       $("#result").innerHTML = `<strong>You win ${formatZnn(o.payout)} wZNN</strong> <a href="${txLink(o.txHash)}" target="_blank" rel="noopener">tx ↗</a>`;
@@ -143,6 +149,7 @@ async function guard(fn: () => Promise<void>): Promise<void> {
     await fn();
   } catch (e) {
     reels.showIdle();
+    if (previewed) $("#result").textContent = "Not settled yet. Use the Settle button below to finish this spin.";
     setStatus(errorText(e), "error");
   } finally {
     busy = false;

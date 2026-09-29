@@ -117,8 +117,10 @@ export type Preview =
  * contract will. Call only after `waitForBlockAfter(targetBlock)`.
  */
 export async function previewSpin(id: bigint, amount: bigint, targetBlock: bigint): Promise<Preview> {
+  // The settle tx lands at least one block later, and a wallet prompt can add a few more:
+  // treat the spin as expired 2 blocks early so a shown win cannot turn into a forfeit.
   const current = await publicClient.getBlockNumber();
-  if (isExpired(targetBlock, current)) return { kind: "expired" };
+  if (isExpired(targetBlock, current + 2n)) return { kind: "expired" };
   const block = await publicClient.getBlock({ blockNumber: targetBlock });
   const reels = reelsFromHash(block.hash, id);
   return { kind: "result", reels, payout: payoutFor(amount, reels) };

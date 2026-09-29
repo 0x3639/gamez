@@ -12,6 +12,21 @@ export type SpinHooks = {
   settled(outcome: SettleOutcome): Promise<void> | void;
 };
 
+/** Preview off-chain (falling back to the old spin-until-settled flow if the RPC hiccups), then settle. */
+async function revealThenSettle(id: bigint, amount: bigint, targetBlock: bigint, hooks: SpinHooks): Promise<void> {
+  let p: Preview | null = null;
+  try {
+    p = await previewSpin(id, amount, targetBlock);
+  } catch {
+    hooks.status("Confirm settle in your wallet…");
+  }
+  if (p) {
+    hooks.status(collectPrompt(p));
+    await hooks.preview(p);
+  }
+  await hooks.settled(await settle(id));
+}
+
 function collectPrompt(p: Preview): string {
   if (p.kind === "expired") return "This spin expired. Confirm in your wallet to clear it…";
   return p.payout > 0n ? "Confirm in your wallet to collect your winnings…" : "Confirm in your wallet to finish the spin…";
@@ -35,11 +50,7 @@ export async function runSpin(bet: bigint, hooks: SpinHooks): Promise<void> {
   hooks.placed(id, txHash);
   hooks.status("Bet placed. Waiting for the next block…");
   await waitForBlockAfter(targetBlock, (current) => hooks.waiting(targetBlock, current));
-  const p = await previewSpin(id, bet, targetBlock);
-  await hooks.preview(p);
-  hooks.status(collectPrompt(p));
-  const outcome = await settle(id);
-  await hooks.settled(outcome);
+  await revealThenSettle(id, bet, targetBlock, hooks);
 }
 
 /** Settle a spin left over from an earlier session. */
@@ -47,8 +58,5 @@ export async function resumeSpin(id: bigint, amount: bigint, targetBlock: bigint
   await ensureChain();
   hooks.status("Waiting for the target block…");
   await waitForBlockAfter(targetBlock, (current) => hooks.waiting(targetBlock, current));
-  const p = await previewSpin(id, amount, targetBlock);
-  await hooks.preview(p);
-  hooks.status(collectPrompt(p));
-  await hooks.settled(await settle(id));
+  await revealThenSettle(id, amount, targetBlock, hooks);
 }
