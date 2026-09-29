@@ -67,7 +67,7 @@ export class Reels {
         strip.style.transition = "none";
         strip.style.transform = cellOffset(reels[i]);          // copy 0, same symbol
         void strip.offsetHeight;                               // commit the jump before animating
-        strip.style.transition = `transform ${STOP_MS}ms cubic-bezier(.12, .8, .2, 1)`;
+        strip.style.transition = `transform ${STOP_MS}ms cubic-bezier(.25, .6, .3, 1), filter 600ms ease-out`;
         strip.style.transform = cellOffset(STOP_COPY * 6 + reels[i]);
         setTimeout(done, STOP_MS + SETTLE_PAUSE_MS);
       }, motion ? i * STAGGER_MS : 0);
