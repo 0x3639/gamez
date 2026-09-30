@@ -22,7 +22,7 @@ export function layout(slotAddress: string): string {
   </header>
   <main class="wrap">
     <section class="cabinet">
-      <div class="marquee"><span>ZENON SLOTS</span><span class="sub">play money · devnet</span></div>
+      <div class="marquee"><h1>Zenon Slots</h1><span class="sub">play money · devnet</span></div>
       <div id="reels" class="reels" aria-live="polite"></div>
       <div id="result" class="result" role="status"></div>
       <form id="betform" class="controls" autocomplete="off">

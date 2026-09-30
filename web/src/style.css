@@ -83,7 +83,7 @@ input:focus-visible { outline-offset: 0; border-color: var(--accent); }
   box-shadow: inset 0 0 0 5px var(--bg), inset 0 0 0 6px var(--line);
 }
 .marquee { display: grid; gap: 6px; justify-items: center; margin-bottom: 20px; }
-.marquee > span:first-child { font: 800 clamp(30px, 8vw, 46px)/1 var(--display); letter-spacing: .14em; color: var(--accent); }
+.marquee h1 { margin: 0; font: 800 clamp(30px, 8vw, 46px)/1 var(--display); letter-spacing: .14em; color: var(--accent); text-transform: uppercase; }
 .marquee .sub { font-size: 13px; color: var(--muted); }
 .marquee::after {
   content: ""; width: 100%; max-width: 320px; height: 6px; margin-top: 6px;
