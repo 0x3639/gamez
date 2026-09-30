@@ -97,15 +97,24 @@ export async function settle(id: bigint): Promise<SettleOutcome> {
   return { kind: "expired", txHash: hash };
 }
 
-/** Resolve once block.number > target. Polls every 2 s; blocks land every ~10 s. */
-export async function waitForBlockAfter(target: bigint, onTick?: (current: bigint) => void): Promise<void> {
-  for (let i = 0; i < 60; i++) {
+async function waitUntil(ready: (current: bigint) => boolean, onTick?: (current: bigint) => void): Promise<void> {
+  for (let i = 0; i < 120; i++) {
     const current = await publicClient.getBlockNumber();
-    if (current > target) return;
+    if (ready(current)) return;
     onTick?.(current);
-    await new Promise((r) => setTimeout(r, Math.min(2000, BLOCK_TIME_MS)));
+    await new Promise((r) => setTimeout(r, Math.min(1000, BLOCK_TIME_MS)));
   }
   throw new Error("The next block is taking too long; try Settle again in a moment");
+}
+
+/** Resolve once the target block exists (block.number >= target): enough to reveal the result. */
+export function waitForBlock(target: bigint, onTick?: (current: bigint) => void): Promise<void> {
+  return waitUntil((current) => current >= target, onTick);
+}
+
+/** Resolve once block.number > target: what the contract requires before `settle` can run. */
+export function waitForBlockAfter(target: bigint, onTick?: (current: bigint) => void): Promise<void> {
+  return waitUntil((current) => current > target, onTick);
 }
 
 export type Preview =
@@ -114,7 +123,7 @@ export type Preview =
 
 /**
  * Compute the spin's result off-chain from the target block's hash, exactly as the
- * contract will. Call only after `waitForBlockAfter(targetBlock)`.
+ * contract will. Call only after `waitForBlock(targetBlock)`.
  */
 export async function previewSpin(id: bigint, amount: bigint, targetBlock: bigint): Promise<Preview> {
   // The settle tx lands at least one block later, and a wallet prompt can add a few more:

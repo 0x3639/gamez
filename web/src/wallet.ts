@@ -3,7 +3,8 @@ import { ADD_CHAIN_PARAMS, CHAIN_ID, DEVNET, RPC_URL } from "./config";
 
 declare global { interface Window { ethereum?: EIP1193Provider } }
 
-export const publicClient = createPublicClient({ chain: DEVNET, transport: http(RPC_URL) });
+// 1 s polling: viem defaults to 4 s, which adds up to 4 s of lag to every receipt on a 10 s chain.
+export const publicClient = createPublicClient({ chain: DEVNET, transport: http(RPC_URL), pollingInterval: 1_000 });
 
 export function getInjected(): EIP1193Provider | null {
   return typeof window !== "undefined" && window.ethereum ? window.ethereum : null;
