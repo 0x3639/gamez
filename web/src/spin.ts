@@ -18,15 +18,16 @@ async function revealThenSettle(id: bigint, amount: bigint, targetBlock: bigint,
   try {
     p = await previewSpin(id, amount, targetBlock);
   } catch {
-    hooks.status("Confirm settle in your wallet…");
+    /* lagging node: fall back to spin-until-settled */
   }
   if (p) {
-    hooks.status(collectPrompt(p));
+    hooks.status(p.kind === "expired" ? "This spin expired." : "Result is in.");
     await hooks.preview(p);
   }
   // The result is known once block N+1 exists, but settle must run in a later block;
   // by the time the reels have stopped that block has normally arrived.
-  await waitForBlockAfter(targetBlock);
+  await waitForBlockAfter(targetBlock, () => hooks.status("Waiting for the next block to collect…"));
+  hooks.status(p ? collectPrompt(p) : "Confirm settle in your wallet…");
   await hooks.settled(await settle(id));
 }
 
