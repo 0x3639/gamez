@@ -10,7 +10,8 @@
     "verify:devnet": "hardhat run scripts/verify.js --network zvmDevnet",
     "fund:devnet": "hardhat run scripts/fund.js --network zvmDevnet",
     "smoke:devnet": "hardhat run scripts/smoke.js --network zvmDevnet",
-    "settle-open:devnet": "hardhat run scripts/settle-open.js --network zvmDevnet"
+    "settle-open:devnet": "hardhat run scripts/settle-open.js --network zvmDevnet",
+    "set-limits:devnet": "hardhat run scripts/set-limits.js --network zvmDevnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

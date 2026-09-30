@@ -15,7 +15,7 @@ Play at https://gamez.0x3639.com. Devnet only; play money.
 
 - Contract: [`0xa3F9C5B7884526742574A9c5A5086Cf4c32981F0`](https://devnet.zenon.foo/explorer/address/0xa3F9C5B7884526742574A9c5A5086Cf4c32981F0) (verified, exact match). Bets and payouts are native ZNN. Paytable: three moon 40×, three chad 20×, other triple 8×, any pair 1.2×; return to player 92.6%.
 - Deploy block: 67537
-- Bankroll funded: 200 ZNN; max bet capped at 0.5 ZNN (`setLimits` can change it without a redeploy)
+- Bankroll: about 5,200 ZNN; bets from 0.1 to 10 ZNN (`MIN_BET=… MAX_BET_CAP=… npm run set-limits:devnet` changes the limits without a redeploy)
 - Retired: `0xC5Cc264FBA954Ce760030928589Ab4644BD57774` (wZNN bets, pair 1.3×) and `0xe865aF54d57ED62E317095D07F2927dA8e65Cc39` (wZNN bets, pair 1.2×) are paused and drained; `scripts/retire.js` does that for any old deployment (`UNWRAP=1` also unwraps wZNN back to ZNN).
 - Owner: the deployer key on the maintainer's machine; transfer with `transferOwnership(newOwner)` then `acceptOwnership()` from the new owner.
 
