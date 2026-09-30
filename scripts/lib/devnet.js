@@ -6,7 +6,7 @@ const DEVNET = {
   rpc: "https://devnet.zenon.foo/zvm/rpc",
   explorer: "https://devnet.zenon.foo/explorer",
   api: "https://devnet.zenon.foo/zvm/api",
-  wrappedZnn: "0x91F5DDA8243e34697C99bE282e05bf48e35A0115",
+  wrappedZnn: "0x91F5DDA8243e34697C99bE282e05bf48e35A0115", // WETH9-style wrapper; used only by retire.js to unwrap an old ERC-20 bankroll
   minBet: 10n ** 17n,          // 0.1
   maxBetCap: 5n * 10n ** 17n,  // 0.5
 };

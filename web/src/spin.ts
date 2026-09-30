@@ -1,4 +1,5 @@
-import { approveMax, placeBet, previewSpin, readState, settle, waitForBlock, waitForBlockAfter, type Preview, type SettleOutcome } from "./chain";
+import { placeBet, previewSpin, readState, settle, waitForBlock, waitForBlockAfter, type Preview, type SettleOutcome } from "./chain";
+import { GAS_RESERVE } from "./config";
 import { checkFunds } from "./logic";
 import { currentAccount, ensureChain } from "./wallet";
 
@@ -36,19 +37,15 @@ function collectPrompt(p: Preview): string {
   return p.payout > 0n ? "Confirm in your wallet to collect your winnings…" : "Confirm in your wallet to finish the spin…";
 }
 
-/** approve (once) → placeBet → wait for target block → settle. Throws plain-English errors. */
+/** placeBet (native ZNN) → wait for target block → reveal → settle. Throws plain-English errors. */
 export async function runSpin(bet: bigint, hooks: SpinHooks): Promise<void> {
   await ensureChain();
   const player = await currentAccount();
   if (!player) throw new Error("Connect a wallet first");
   const st = await readState(player);
   if (st.paused) throw new Error("The machine is paused");
-  const fundsMsg = checkFunds(bet, st.wznn);
+  const fundsMsg = checkFunds(bet, st.znn, GAS_RESERVE);
   if (fundsMsg) throw new Error(fundsMsg);
-  if (st.allowance < bet) {
-    hooks.status("Approve wZNN once in your wallet…");
-    await approveMax();
-  }
   hooks.status("Confirm the bet in your wallet…");
   const { id, targetBlock, txHash } = await placeBet(bet);
   hooks.placed(id, txHash);

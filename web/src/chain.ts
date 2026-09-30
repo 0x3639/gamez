@@ -1,11 +1,11 @@
 import { parseEventLogs, type Address, type Hash } from "viem";
-import { SLOT_ABI, WETH_ABI } from "./abi";
+import { SLOT_ABI } from "./abi";
 import { ADDRESSES, BLOCK_TIME_MS, FEES } from "./config";
 import { isExpired, payoutFor, reelsFromHash, scanRange } from "./logic";
 import { publicClient, walletClient } from "./wallet";
 
 export type State = {
-  znn: bigint; wznn: bigint; allowance: bigint;
+  znn: bigint; owed: bigint;
   minBet: bigint; maxBet: bigint; bankroll: bigint; paused: boolean; block: bigint;
 };
 
@@ -14,7 +14,6 @@ export type Result = {
 };
 
 const slot = { address: ADDRESSES.slot, abi: SLOT_ABI } as const;
-const wznn = { address: ADDRESSES.wznn, abi: WETH_ABI } as const;
 
 export async function readState(player: Address | null): Promise<State> {
   const [minBet, maxBet, bankroll, paused, block] = await Promise.all([
@@ -24,15 +23,14 @@ export async function readState(player: Address | null): Promise<State> {
     publicClient.readContract({ ...slot, functionName: "paused" }),
     publicClient.getBlockNumber(),
   ]);
-  let znn = 0n, wz = 0n, allowance = 0n;
+  let znn = 0n, owed = 0n;
   if (player) {
-    [znn, wz, allowance] = await Promise.all([
+    [znn, owed] = await Promise.all([
       publicClient.getBalance({ address: player }),
-      publicClient.readContract({ ...wznn, functionName: "balanceOf", args: [player] }),
-      publicClient.readContract({ ...wznn, functionName: "allowance", args: [player, ADDRESSES.slot] }),
+      publicClient.readContract({ ...slot, functionName: "owed", args: [player] }),
     ]);
   }
-  return { znn, wznn: wz, allowance, minBet, maxBet, bankroll, paused, block };
+  return { znn, owed, minBet, maxBet, bankroll, paused, block };
 }
 
 async function account(): Promise<Address> {
@@ -48,30 +46,9 @@ async function confirmed(hash: Hash): Promise<Hash> {
 }
 
 // Each write is simulated first so a revert surfaces as a decoded custom error before the wallet opens.
-export async function wrap(amount: bigint): Promise<Hash> {
-  const a = await account();
-  const req = { ...wznn, functionName: "deposit", value: amount, account: a } as const;
-  await publicClient.simulateContract(req);
-  return confirmed(await walletClient().writeContract({ ...req, ...FEES }));
-}
-
-export async function unwrap(amount: bigint): Promise<Hash> {
-  const a = await account();
-  const req = { ...wznn, functionName: "withdraw", args: [amount], account: a } as const;
-  await publicClient.simulateContract(req);
-  return confirmed(await walletClient().writeContract({ ...req, ...FEES }));
-}
-
-export async function approveMax(): Promise<Hash> {
-  const a = await account();
-  const req = { ...wznn, functionName: "approve", args: [ADDRESSES.slot, 2n ** 256n - 1n], account: a } as const;
-  await publicClient.simulateContract(req);
-  return confirmed(await walletClient().writeContract({ ...req, ...FEES }));
-}
-
 export async function placeBet(amount: bigint): Promise<{ id: bigint; targetBlock: bigint; txHash: Hash }> {
   const a = await account();
-  const req = { ...slot, functionName: "placeBet", args: [amount], account: a } as const;
+  const req = { ...slot, functionName: "placeBet", value: amount, account: a } as const;
   await publicClient.simulateContract(req);
   const hash = await walletClient().writeContract({ ...req, ...FEES });
   const rc = await publicClient.waitForTransactionReceipt({ hash });
@@ -105,6 +82,15 @@ async function waitUntil(ready: (current: bigint) => boolean, onTick?: (current:
     await new Promise((r) => setTimeout(r, Math.min(1000, BLOCK_TIME_MS)));
   }
   throw new Error("The next block is taking too long; try Settle again in a moment");
+}
+
+/** Pull a payout the contract could not push (only ever needed for contract wallets). */
+export async function claimOwed(): Promise<Hash> {
+  const a = await account();
+  const req = { ...slot, functionName: "withdrawPayout", account: a } as const;
+  await publicClient.simulateContract(req);
+  const hash = await walletClient().writeContract({ ...req, ...FEES });
+  return confirmed(hash);
 }
 
 /** Resolve once the target block exists (block.number >= target): enough to reveal the result. */

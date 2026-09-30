@@ -1,7 +1,8 @@
 // Pause an old SlotMachine deployment and withdraw its unreserved bankroll to the owner.
+// UNWRAP=1 additionally unwraps any wZNN the owner holds back to native ZNN (for the ERC-20-era deployments).
 // Usage: OLD_ADDRESS=0x… npx hardhat run scripts/retire.js --network zvmDevnet
 const { ethers } = require("hardhat");
-const { DEVNET, requireDevnet, readDeployment } = require("./lib/devnet");
+const { DEVNET, requireDevnet, readDeployment, WETH_ABI } = require("./lib/devnet");
 
 async function main() {
   await requireDevnet(ethers.provider);
@@ -20,5 +21,10 @@ async function main() {
   if (unlocked > 0n) { await (await slot.withdraw(unlocked)).wait(1); }
   console.log(`withdrew ${ethers.formatEther(unlocked)} wZNN (still reserved for open spins: ${ethers.formatEther(locked)})`);
   console.log(`${DEVNET.explorer}/address/${address}`);
+  if (process.env.UNWRAP === "1") {
+    const weth = new ethers.Contract(DEVNET.wrappedZnn, WETH_ABI, owner);
+    const held = await weth.balanceOf(owner.address);
+    if (held > 0n) { await (await weth.withdraw(held)).wait(1); console.log(`unwrapped ${ethers.formatEther(held)} wZNN to native ZNN`); }
+  }
 }
 main().catch((e) => { console.error(e); process.exit(1); });

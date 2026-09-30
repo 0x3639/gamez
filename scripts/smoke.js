@@ -1,18 +1,15 @@
-// Places one 0.1 wZNN bet from the deployer, waits for the target block, settles, prints reels.
+// Places one 0.1 ZNN bet from the deployer, waits for the target block, settles, prints reels.
 const { ethers } = require("hardhat");
-const { DEVNET, readDeployment, sleep, requireDevnet, WETH_ABI } = require("./lib/devnet");
+const { DEVNET, readDeployment, sleep, requireDevnet } = require("./lib/devnet");
 
 async function main() {
   await requireDevnet(ethers.provider);
   const [signer] = await ethers.getSigners();
   const d = readDeployment();
-  const weth = new ethers.Contract(DEVNET.wrappedZnn, WETH_ABI, signer);
   const slot = await ethers.getContractAt("SlotMachine", d.address, signer);
   const bet = ethers.parseEther("0.1");
-  if ((await weth.balanceOf(signer.address)) < bet) await (await weth.deposit({ value: bet })).wait(1);
-  if ((await weth.allowance(signer.address, d.address)) < bet) await (await weth.approve(d.address, ethers.MaxUint256)).wait(1);
 
-  const rc = await (await slot.placeBet(bet)).wait(1);
+  const rc = await (await slot.placeBet({ value: bet })).wait(1);
   const placed = rc.logs.map((l) => { try { return slot.interface.parseLog(l); } catch { return null; } })
     .find((p) => p && p.name === "SpinPlaced");
   if (!placed) throw new Error(`SpinPlaced event not found in tx ${rc.hash}`);
@@ -29,7 +26,7 @@ async function main() {
     .find((p) => p && (p.name === "SpinSettled" || p.name === "SpinExpired"));
   if (!ev) throw new Error(`SpinSettled/SpinExpired event not found in tx ${rc2.hash}`);
   console.log(`${ev.name}:`, ev.name === "SpinSettled"
-    ? `reels ${ev.args.r0} ${ev.args.r1} ${ev.args.r2}, payout ${ethers.formatEther(ev.args.payout)} wZNN`
+    ? `reels ${ev.args.r0} ${ev.args.r1} ${ev.args.r2}, payout ${ethers.formatEther(ev.args.payout)} ZNN`
     : "expired");
   console.log(`${DEVNET.explorer}/tx/${rc2.hash}`);
   if (ev.name !== "SpinSettled") throw new Error(`spin ${id} expired instead of settling (tx ${rc2.hash})`);

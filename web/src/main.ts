@@ -2,7 +2,7 @@ import "./style.css";
 import type { Address } from "viem";
 import { parseUnits } from "viem";
 import { ADDRESSES } from "./config";
-import { findOpenSpins, readState as readChainState, recentResults, unwrap, wrap, type Preview, type SettleOutcome, type State } from "./chain";
+import { claimOwed, findOpenSpins, readState as readChainState, recentResults, type Preview, type SettleOutcome, type State } from "./chain";
 import { faucetDrip, requestFaucet } from "./faucet";
 import { formatZnn, parseBet } from "./logic";
 import { Reels } from "./reels";
@@ -19,7 +19,7 @@ if (import.meta.env.DEV) window.__gamezReels = reels; // manual animation checks
 
 let player: Address | null = null;
 let busy = false;
-let state: State = { znn: 0n, wznn: 0n, allowance: 0n, minBet: 0n, maxBet: 0n, bankroll: 0n, paused: false, block: 0n };
+let state: State = { znn: 0n, owed: 0n, minBet: 0n, maxBet: 0n, bankroll: 0n, paused: false, block: 0n };
 
 let unreachable = false;
 let lastRows: Awaited<ReturnType<typeof recentResults>> = [];
@@ -57,7 +57,9 @@ async function refresh(): Promise<void> {
     $("#connect").textContent = player ? (onDevnet ? "Connected" : "Switch to ZVM devnet") : "Connect wallet";
     renderState(state, active);
     const enabled = !!active && !busy;
-    for (const id of ["#spin", "#faucet", "#wrap", "#unwrap"]) ($(id) as HTMLButtonElement).disabled = !enabled;
+    for (const id of ["#spin", "#faucet", "#claim"]) ($(id) as HTMLButtonElement).disabled = !enabled;
+    $("#owedrow").classList.toggle("hidden", !(player && onDevnet && state.owed > 0n));
+    if (state.owed > 0n) $("#owedtext").textContent = `${formatZnn(state.owed)} ZNN is waiting for you (your wallet rejected the payout).`;
     lastRows = rows;
     lastRowsFor = active;
     renderHistory(rows);
@@ -68,7 +70,7 @@ async function refresh(): Promise<void> {
       const expired = o.targetBlock + 256n < st.block;
       box.innerHTML = expired
         ? `This spin expired (bet forfeited). Settle it to clear it. <button id="settleopen" class="btn">Settle it</button>`
-        : `You have an unsettled spin of ${formatZnn(o.amount)} wZNN. <button id="settleopen" class="btn">Settle it</button>`;
+        : `You have an unsettled spin of ${formatZnn(o.amount)} ZNN. <button id="settleopen" class="btn">Settle it</button>`;
       $("#settleopen").addEventListener("click", () => guard(async () => {
         $("#result").textContent = "";
         previewed = null;
@@ -118,7 +120,7 @@ const hooks = {
     await reels.stopOn(p.reels);
     if (p.payout > 0n) {
       reels.markWin();
-      $("#result").innerHTML = `<strong>You win ${formatZnn(p.payout)} wZNN</strong> <span class="muted">collecting…</span>`;
+      $("#result").innerHTML = `<strong>You win ${formatZnn(p.payout)} ZNN</strong> <span class="muted">collecting…</span>`;
     } else {
       $("#result").innerHTML = `No win this time. <span class="muted">finishing…</span>`;
     }
@@ -136,7 +138,7 @@ const hooks = {
     if (!same) { reels.start(); await reels.stopOn(o.reels); } // preview missing or (reorg) different: re-run the stop
     if (o.payout > 0n) {
       reels.markWin();
-      $("#result").innerHTML = `<strong>You win ${formatZnn(o.payout)} wZNN</strong> <a href="${txLink(o.txHash)}" target="_blank" rel="noopener">tx ↗</a>`;
+      $("#result").innerHTML = `<strong>You win ${formatZnn(o.payout)} ZNN</strong> <a href="${txLink(o.txHash)}" target="_blank" rel="noopener">tx ↗</a>`;
       setStatus("Paid out", "ok");
     } else {
       $("#result").innerHTML = `No win this time. <a href="${txLink(o.txHash)}" target="_blank" rel="noopener">tx ↗</a>`;
@@ -186,29 +188,11 @@ $("#faucet").addEventListener("click", () => guard(async () => {
   await new Promise((r) => setTimeout(r, 12_000)); // faucet tx lands in the next block
 }));
 
-$("#wrapform").addEventListener("submit", (ev) => {
-  ev.preventDefault();
-  guard(async () => {
-    const v = ($("#wrapamt") as HTMLInputElement).value.trim();
-    if (!/^\d+(\.\d{1,18})?$/.test(v) || Number(v) <= 0) throw new Error("Enter an amount to wrap");
-    const amt = parseUnits(v, 18);
-    if (amt > state.znn) throw new Error(`You have ${formatZnn(state.znn)} ZNN`);
-    await ensureChain();
-    $("#fundsmsg").textContent = "Confirm wrap in your wallet…";
-    await wrap(amt);
-    $("#fundsmsg").textContent = `Wrapped ${v} ZNN`;
-  });
-});
-
-$("#unwrap").addEventListener("click", () => guard(async () => {
-  const v = ($("#wrapamt") as HTMLInputElement).value.trim();
-  if (!/^\d+(\.\d{1,18})?$/.test(v) || Number(v) <= 0) throw new Error("Enter an amount to unwrap");
-  const amt = parseUnits(v, 18);
-  if (amt > state.wznn) throw new Error(`You have ${formatZnn(state.wznn)} wZNN`);
+$("#claim").addEventListener("click", () => guard(async () => {
   await ensureChain();
-  $("#fundsmsg").textContent = "Confirm unwrap in your wallet…";
-  await unwrap(amt);
-  $("#fundsmsg").textContent = `Unwrapped ${v} wZNN`;
+  $("#fundsmsg").textContent = "Confirm the claim in your wallet…";
+  await claimOwed();
+  $("#fundsmsg").textContent = "Payout claimed";
 }));
 
 onWalletChange(() => { refresh(); });

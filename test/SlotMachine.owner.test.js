@@ -8,33 +8,29 @@ const E = (n) => ethers.parseEther(String(n));
 
 async function setup() {
   const [owner, alice, bob] = await ethers.getSigners();
-  const tok = await (await ethers.getContractFactory("MockWETH")).deploy();
-  const slot = await (await ethers.getContractFactory("SlotMachine")).deploy(
-    await tok.getAddress(), owner.address, MIN, CAP);
+  const slot = await (await ethers.getContractFactory("SlotMachine")).deploy(owner.address, MIN, CAP);
   const slotAddr = await slot.getAddress();
-  await tok.mint(owner.address, E(100));
-  await tok.mint(alice.address, E(10));
-  await tok.connect(owner).approve(slotAddr, ethers.MaxUint256);
-  await tok.connect(alice).approve(slotAddr, ethers.MaxUint256);
-  return { owner, alice, bob, tok, slot, slotAddr };
+  return { owner, alice, bob, slot, slotAddr };
 }
+const bal = (a) => ethers.provider.getBalance(a);
 
 describe("SlotMachine owner functions", () => {
-  it("fund moves tokens in from anyone and emits", async () => {
-    const { owner, alice, tok, slot, slotAddr } = await setup();
-    await expect(slot.connect(owner).fund(E(50))).to.emit(slot, "Funded").withArgs(owner.address, E(50));
-    await expect(slot.connect(alice).fund(E(1))).to.emit(slot, "Funded").withArgs(alice.address, E(1));
-    expect(await tok.balanceOf(slotAddr)).to.equal(E(51));
+  it("fund and plain sends add ZNN from anyone and emit", async () => {
+    const { owner, alice, slot, slotAddr } = await setup();
+    await expect(slot.connect(owner).fund({ value: E(50) })).to.emit(slot, "Funded").withArgs(owner.address, E(50));
+    await expect(alice.sendTransaction({ to: slotAddr, value: E(1) })).to.emit(slot, "Funded").withArgs(alice.address, E(1));
+    expect(await bal(slotAddr)).to.equal(E(51));
   });
 
   it("withdraw is owner-only and capped by the unlocked balance", async () => {
-    const { owner, alice, tok, slot } = await setup();
-    await slot.connect(owner).fund(E(50));
-    await slot.connect(alice).placeBet(E(1));                       // locked 40, balance 51
+    const { owner, alice, slot } = await setup();
+    await slot.connect(owner).fund({ value: E(50) });
+    await slot.connect(alice).placeBet({ value: E(1) });               // locked 40, balance 51
     await expect(slot.connect(alice).withdraw(E(1))).to.be.revertedWithCustomError(slot, "OwnableUnauthorizedAccount");
     await expect(slot.connect(owner).withdraw(E(11) + 1n)).to.be.revertedWithCustomError(slot, "InsufficientUnlocked");
-    await expect(slot.connect(owner).withdraw(E(11))).to.emit(slot, "Withdrawn").withArgs(owner.address, E(11));
-    expect(await tok.balanceOf(owner.address)).to.equal(E(61));
+    const before = await bal(owner.address);
+    const rc = await (await slot.connect(owner).withdraw(E(11))).wait();
+    expect((await bal(owner.address)) - before + rc.gasUsed * rc.gasPrice).to.equal(E(11));
     await mine(1);
     await slot.settle(1n);
     expect(await slot.locked()).to.equal(0n);

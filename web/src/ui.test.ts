@@ -34,8 +34,6 @@ describe("errorText", () => {
     ["BetTooLarge", "Bet is above the current maximum"],
     ["EnforcedPause", "The machine is paused"],
     ["InsufficientUnlocked", "Not enough unreserved bankroll"],
-    ["ERC20InsufficientAllowance", "Approve wZNN first"],
-    ["ERC20InsufficientBalance", "Not enough wZNN, wrap more first"],
   ];
   for (const [name, text] of custom) {
     it(`maps ${name}`, () => {

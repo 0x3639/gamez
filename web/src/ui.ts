@@ -26,7 +26,7 @@ export function layout(slotAddress: string): string {
       <div id="reels" class="reels" aria-live="polite"></div>
       <div id="result" class="result" role="status"></div>
       <form id="betform" class="controls" autocomplete="off">
-        <label class="betlabel">Bet <input id="bet" inputmode="decimal" value="0.5" aria-describedby="limits" /> <span class="unit">wZNN</span></label>
+        <label class="betlabel">Bet <input id="bet" inputmode="decimal" value="0.5" aria-describedby="limits" /> <span class="unit">ZNN</span></label>
         <div id="limits" class="limits"></div>
         <button id="spin" class="btn spin" type="submit" disabled>SPIN</button>
       </form>
@@ -38,17 +38,15 @@ export function layout(slotAddress: string): string {
       <h2>Your funds</h2>
       <dl class="stats">
         <div><dt>ZNN</dt><dd id="znn">–</dd></div>
-        <div><dt>wZNN</dt><dd id="wznn">–</dd></div>
         <div><dt>Bankroll</dt><dd id="bankroll">–</dd></div>
       </dl>
       <div class="row">
         <button id="faucet" class="btn ghost" disabled>Get devnet ZNN</button>
       </div>
-      <form id="wrapform" class="row">
-        <input id="wrapamt" inputmode="decimal" placeholder="amount" aria-label="amount to wrap or unwrap" />
-        <button id="wrap" class="btn ghost" type="submit" disabled>Wrap ZNN → wZNN</button>
-        <button id="unwrap" class="btn ghost" type="button" disabled>Unwrap</button>
-      </form>
+      <div id="owedrow" class="row hidden">
+        <span id="owedtext" class="muted"></span>
+        <button id="claim" class="btn ghost" type="button">Claim</button>
+      </div>
       <p id="fundsmsg" class="muted"></p>
     </section>
 
@@ -77,9 +75,8 @@ export function layout(slotAddress: string): string {
 
 export function renderState(s: State, player: Address | null): void {
   $("#znn").textContent = player ? formatZnn(s.znn) : "–";
-  $("#wznn").textContent = player ? formatZnn(s.wznn) : "–";
-  $("#bankroll").textContent = `${formatZnn(s.bankroll)} wZNN`;
-  $("#limits").textContent = s.paused ? "Machine paused" : `min ${formatZnn(s.minBet)} · max ${formatZnnDown(s.maxBet)} wZNN`;
+  $("#bankroll").textContent = `${formatZnn(s.bankroll)} ZNN`;
+  $("#limits").textContent = s.paused ? "Machine paused" : `min ${formatZnn(s.minBet)} · max ${formatZnnDown(s.maxBet)} ZNN`;
 }
 
 export function renderHistory(rows: Result[]): void {
@@ -88,7 +85,7 @@ export function renderHistory(rows: Result[]): void {
   ol.innerHTML = rows.map((r) => {
     const reels = r.reels ? r.reels.map((i) => sym(i)).join(" ") : "expired";
     const out = r.expired ? "forfeited" : r.payout > 0n ? `+${formatZnn(r.payout)}` : "no win";
-    return `<li><span class="reelsmall">${reels}</span><span>${formatZnn(r.amount)} wZNN</span><span class="${r.payout > 0n ? "win" : ""}">${out}</span><a href="${txLink(r.txHash)}" target="_blank" rel="noopener">tx</a></li>`;
+    return `<li><span class="reelsmall">${reels}</span><span>${formatZnn(r.amount)} ZNN</span><span class="${r.payout > 0n ? "win" : ""}">${out}</span><a href="${txLink(r.txHash)}" target="_blank" rel="noopener">tx</a></li>`;
   }).join("");
 }
 
@@ -106,8 +103,8 @@ const CONTRACT_ERRORS: [string, string][] = [
   ["BetTooLarge", "Bet is above the current maximum"],
   ["EnforcedPause", "The machine is paused"],
   ["InsufficientUnlocked", "Not enough unreserved bankroll"],
-  ["ERC20InsufficientAllowance", "Approve wZNN first"],
-  ["ERC20InsufficientBalance", "Not enough wZNN, wrap more first"],
+  ["NothingOwed", "Nothing to claim"],
+  ["SendFailed", "Your wallet refused the payment; claim it from a wallet that accepts ZNN"],
 ];
 
 type ErrLike = { name?: string; code?: number; message?: string; shortMessage?: string; details?: string; cause?: unknown };

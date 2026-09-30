@@ -1,5 +1,8 @@
 export const SLOT_ABI = [
-  { type: "function", name: "placeBet", stateMutability: "nonpayable", inputs: [{ name: "amount", type: "uint256" }], outputs: [{ name: "id", type: "uint256" }] },
+  { type: "function", name: "placeBet", stateMutability: "payable", inputs: [], outputs: [{ name: "id", type: "uint256" }] },
+  { type: "function", name: "fund", stateMutability: "payable", inputs: [], outputs: [] },
+  { type: "function", name: "withdrawPayout", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "owed", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "settle", stateMutability: "nonpayable", inputs: [{ name: "id", type: "uint256" }], outputs: [] },
   { type: "function", name: "maxBet", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "minBet", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
@@ -26,8 +29,9 @@ export const SLOT_ABI = [
   { type: "error", name: "UnknownSpin", inputs: [] },
   { type: "error", name: "InsufficientUnlocked", inputs: [] },
   { type: "error", name: "BadLimits", inputs: [] },
-  { type: "error", name: "ZeroAddress", inputs: [] },
   { type: "error", name: "RenounceDisabled", inputs: [] },
+  { type: "error", name: "NothingOwed", inputs: [] },
+  { type: "error", name: "SendFailed", inputs: [] },
   { type: "error", name: "EnforcedPause", inputs: [] },
   { type: "error", name: "ExpectedPause", inputs: [] },
   { type: "error", name: "OwnableUnauthorizedAccount", inputs: [{ name: "account", type: "address" }] },
@@ -36,12 +40,3 @@ export const SLOT_ABI = [
   { type: "error", name: "SafeERC20FailedOperation", inputs: [{ name: "token", type: "address" }] },
 ] as const;
 
-export const WETH_ABI = [
-  { type: "function", name: "deposit", stateMutability: "payable", inputs: [], outputs: [] },
-  { type: "function", name: "withdraw", stateMutability: "nonpayable", inputs: [{ name: "wad", type: "uint256" }], outputs: [] },
-  { type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "guy", type: "address" }, { name: "wad", type: "uint256" }], outputs: [{ type: "bool" }] },
-  { type: "function", name: "allowance", stateMutability: "view", inputs: [{ type: "address" }, { type: "address" }], outputs: [{ type: "uint256" }] },
-  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
-  { type: "error", name: "ERC20InsufficientAllowance", inputs: [{ name: "spender", type: "address" }, { name: "allowance", type: "uint256" }, { name: "needed", type: "uint256" }] },
-  { type: "error", name: "ERC20InsufficientBalance", inputs: [{ name: "sender", type: "address" }, { name: "balance", type: "uint256" }, { name: "needed", type: "uint256" }] },
-] as const;

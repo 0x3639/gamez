@@ -45,7 +45,7 @@ export function scanRange(latest: bigint, deployBlock: bigint, window: bigint): 
 export function parseBet(input: string, min: bigint, max: bigint):
   { ok: true; value: bigint } | { ok: false; message: string } {
   if (max < min) return { ok: false, message: "The machine is out of bankroll right now" };
-  const range = `Enter a bet between ${formatZnn(min)} and ${formatZnnDown(max)} wZNN`;
+  const range = `Enter a bet between ${formatZnn(min)} and ${formatZnnDown(max)} ZNN`;
   const t = input.trim();
   if (!/^\d+(\.\d{1,18})?$/.test(t)) return { ok: false, message: range };
   const value = parseUnits(t, 18);
@@ -53,8 +53,12 @@ export function parseBet(input: string, min: bigint, max: bigint):
   return { ok: true, value };
 }
 
-export function checkFunds(bet: bigint, wznn: bigint): string | null {
-  return wznn >= bet ? null : `You have ${formatZnn(wznn)} wZNN, wrap more first`;
+/** Bets are native ZNN; the player must also keep `reserve` back for the settle transaction's gas. */
+export function checkFunds(bet: bigint, znn: bigint, reserve: bigint = 0n): string | null {
+  if (znn >= bet + reserve) return null;
+  return znn >= bet
+    ? `Keep at least ${formatZnn(reserve)} ZNN for gas (you have ${formatZnn(znn)})`
+    : `You have ${formatZnn(znn)} ZNN, use the faucet first`;
 }
 
 /** @param drip the faucet's current drip, already formatted (e.g. "500"); omitted when unknown */

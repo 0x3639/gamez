@@ -24,11 +24,13 @@ export const ADD_CHAIN_PARAMS = {
 
 export const ADDRESSES = {
   slot: deployment.address as `0x${string}`,
-  wznn: deployment.token as `0x${string}`,
   deployBlock: BigInt(deployment.deployBlock),
 } as const;
 
 export const BLOCK_TIME_MS = 10_000;
+
+/** Native ZNN a player should keep back for the settle transaction's gas. */
+export const GAS_RESERVE = 50_000_000_000_000_000n; // 0.05 ZNN
 
 /** The devnet relayer rejects priority fees under 50 gwei; real devnet txs use 100 gwei. */
 export const FEES = {

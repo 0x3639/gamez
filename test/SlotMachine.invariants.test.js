@@ -15,17 +15,10 @@ describe("SlotMachine invariants (randomized)", () => {
     this.timeout(600000);
     const rand = rng(20260929);
     const [owner, ...players] = (await ethers.getSigners()).slice(0, 5);
-    const tok = await (await ethers.getContractFactory("MockWETH")).deploy();
-    const slot = await (await ethers.getContractFactory("SlotMachine")).deploy(
-      await tok.getAddress(), owner.address, E(0.1), E(5));
+    const slot = await (await ethers.getContractFactory("SlotMachine")).deploy(owner.address, E(0.1), E(5));
     const slotAddr = await slot.getAddress();
-    await tok.mint(owner.address, E(1000));
-    await tok.connect(owner).approve(slotAddr, ethers.MaxUint256);
-    await slot.connect(owner).fund(E(200));
-    for (const p of players) {
-      await tok.mint(p.address, E(100));
-      await tok.connect(p).approve(slotAddr, ethers.MaxUint256);
-    }
+    await slot.connect(owner).fund({ value: E(200) });
+    const bal = (a) => ethers.provider.getBalance(a);
 
     const open = [];
     let totalPaid = 0n, totalBet = 0n;
@@ -36,7 +29,7 @@ describe("SlotMachine invariants (randomized)", () => {
         const max = await slot.maxBet();
         if (max >= E(0.1)) {
           const amt = E(0.1) + BigInt(Math.floor(rand() * Number((max - E(0.1)) / 10n ** 15n))) * 10n ** 15n;
-          const rc = await (await slot.connect(p).placeBet(amt)).wait();
+          const rc = await (await slot.connect(p).placeBet({ value: amt })).wait();
           const ev = rc.logs.map((l) => { try { return slot.interface.parseLog(l); } catch { return null; } })
             .find((x) => x && x.name === "SpinPlaced");
           open.push({ id: ev.args.id, amount: ev.args.amount });
@@ -57,11 +50,11 @@ describe("SlotMachine invariants (randomized)", () => {
         const unlocked = await slot.unlockedBalance();
         if (unlocked > 0n) await slot.connect(owner).withdraw(unlocked / 3n);
       } else {
-        await slot.connect(owner).fund(E(10));
+        await slot.connect(owner).fund({ value: E(10) });
       }
-      const bal = await tok.balanceOf(slotAddr);
-      expect(await slot.locked()).to.be.at.most(bal);
-      expect(await slot.unlockedBalance()).to.equal(bal - (await slot.locked()));
+      const bal_ = await bal(slotAddr);
+      expect(await slot.locked()).to.be.at.most(bal_);
+      expect(await slot.unlockedBalance()).to.equal(bal_ - (await slot.locked()));
     }
     for (const { id } of open) {
       if (!(await slot.canSettle(id))) await mine(1);

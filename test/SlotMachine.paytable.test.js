@@ -6,10 +6,8 @@ const CAP = ethers.parseEther("5");
 
 async function deploy() {
   const [owner] = await ethers.getSigners();
-  const weth = await (await ethers.getContractFactory("MockWETH")).deploy();
-  const slot = await (await ethers.getContractFactory("SlotMachine")).deploy(
-    await weth.getAddress(), owner.address, MIN, CAP);
-  return { owner, weth, slot };
+  const slot = await (await ethers.getContractFactory("SlotMachine")).deploy(owner.address, MIN, CAP);
+  return { owner, slot };
 }
 
 describe("SlotMachine paytable and views", () => {
@@ -41,12 +39,11 @@ describe("SlotMachine paytable and views", () => {
   });
 
   it("exposes constants and constructor state", async () => {
-    const { slot, weth, owner } = await deploy();
+    const { slot, owner } = await deploy();
     expect(await slot.MAX_MULTIPLIER()).to.equal(40n);
     expect(await slot.SYMBOLS()).to.equal(6n);
     expect(await slot.SYMBOL_SEVEN()).to.equal(4n);
     expect(await slot.SYMBOL_Z()).to.equal(5n);
-    expect(await slot.token()).to.equal(await weth.getAddress());
     expect(await slot.owner()).to.equal(owner.address);
     expect(await slot.minBet()).to.equal(MIN);
     expect(await slot.maxBetCap()).to.equal(CAP);
@@ -56,21 +53,19 @@ describe("SlotMachine paytable and views", () => {
 
   it("rejects bad constructor args", async () => {
     const [owner] = await ethers.getSigners();
-    const weth = await (await ethers.getContractFactory("MockWETH")).deploy();
     const F = await ethers.getContractFactory("SlotMachine");
-    await expect(F.deploy(ethers.ZeroAddress, owner.address, MIN, CAP)).to.be.revertedWithCustomError(F, "ZeroAddress");
-    await expect(F.deploy(await weth.getAddress(), owner.address, 0n, CAP)).to.be.revertedWithCustomError(F, "BadLimits");
-    await expect(F.deploy(await weth.getAddress(), owner.address, CAP + 1n, CAP)).to.be.revertedWithCustomError(F, "BadLimits");
+    await expect(F.deploy(owner.address, 0n, CAP)).to.be.revertedWithCustomError(F, "BadLimits");
+    await expect(F.deploy(owner.address, CAP + 1n, CAP)).to.be.revertedWithCustomError(F, "BadLimits");
   });
 
-  it("maxBet is min(cap, unlocked/40) and 0 with an empty bankroll", async () => {
-    const { slot, weth } = await deploy();
+  it("maxBet is min(cap, unlocked/40) and 0 with an empty bankroll; plain sends and fund() top up", async () => {
+    const { slot, owner } = await deploy();
     expect(await slot.maxBet()).to.equal(0n);
-    await weth.mint(await slot.getAddress(), ethers.parseEther("40"));
+    await owner.sendTransaction({ to: await slot.getAddress(), value: ethers.parseEther("40") });
     expect(await slot.maxBet()).to.equal(ethers.parseEther("1"));
     expect(await slot.bankroll()).to.equal(ethers.parseEther("40"));
     expect(await slot.unlockedBalance()).to.equal(ethers.parseEther("40"));
-    await weth.mint(await slot.getAddress(), ethers.parseEther("400"));
+    await expect(slot.fund({ value: ethers.parseEther("400") })).to.emit(slot, "Funded").withArgs(owner.address, ethers.parseEther("400"));
     expect(await slot.maxBet()).to.equal(CAP);
   });
 

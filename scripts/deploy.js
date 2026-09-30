@@ -13,7 +13,7 @@ async function main() {
   if (bal < ethers.parseEther("0.5")) throw new Error("deployer needs at least 0.5 ZNN for gas; run FAUCET_ONLY=1 FAUCET_REQUESTS=1 npm run fund:devnet first");
 
   const F = await ethers.getContractFactory("SlotMachine");
-  const args = [DEVNET.wrappedZnn, deployer.address, DEVNET.minBet, DEVNET.maxBetCap];
+  const args = [deployer.address, DEVNET.minBet, DEVNET.maxBetCap];
   const slot = await F.deploy(...args);
   const tx = slot.deploymentTransaction();
   console.log(`deploy tx ${tx.hash}`);
@@ -21,7 +21,7 @@ async function main() {
   const address = await slot.getAddress();
   const constructorArgs = F.interface.encodeDeploy(args);
   writeDeployment({
-    chainId, address, token: DEVNET.wrappedZnn, owner: deployer.address,
+    chainId, address, owner: deployer.address,
     deployBlock: rc.blockNumber, constructorArgs, txHash: tx.hash,
   });
   console.log(`SlotMachine at ${address} (block ${rc.blockNumber})`);

@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
-/// @title SlotMachine — three-reel slot on the Zenon ZVM devnet, bets in an ERC-20.
+/// @title SlotMachine — three-reel slot on the Zenon ZVM devnet, bets in native ZNN.
 /// @notice Two steps per spin: `placeBet` takes the wager and fixes the *next* block as the
 ///         randomness source; `settle` (anyone, once that block exists) derives the reels from
 ///         that block's hash and pays out. Nothing from the settle block enters the seed, so
@@ -15,7 +13,6 @@ import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step
 /// @dev    Devnet demo. The block producer could in principle influence the target hash; a VRF
 ///         would be required for real value.
 contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
-    using SafeERC20 for IERC20;
 
     struct Spin {
         address player;
@@ -29,12 +26,14 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
     uint8 public constant SYMBOL_SEVEN = 4;
     uint8 public constant SYMBOL_Z = 5;
 
-    IERC20 public immutable token;
     uint256 public minBet;
     uint256 public maxBetCap;
     uint256 public locked;        // sum of amount * MAX_MULTIPLIER over unsettled spins
     uint256 public nextSpinId = 1;
     mapping(uint256 => Spin) public spins;
+    /// @notice Payouts that could not be delivered (the player is a contract that rejected ZNN);
+    ///         claimable with `withdrawPayout`. Counted in `locked` until claimed.
+    mapping(address => uint256) public owed;
 
     event SpinPlaced(uint256 indexed id, address indexed player, uint256 amount, uint256 targetBlock);
     event SpinSettled(uint256 indexed id, address indexed player, uint256 amount, uint8 r0, uint8 r1, uint8 r2, uint256 payout);
@@ -42,8 +41,9 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
     event Funded(address indexed from, uint256 amount);
     event Withdrawn(address indexed to, uint256 amount);
     event LimitsSet(uint256 minBet, uint256 maxBetCap);
+    event PayoutDeferred(address indexed player, uint256 amount);
+    event PayoutClaimed(address indexed player, uint256 amount);
 
-    error ZeroAddress();
     error BadLimits();
     error BetTooSmall();
     error BetTooLarge();
@@ -51,12 +51,17 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
     error AlreadySettled();
     error TooEarly();
     error InsufficientUnlocked();
+    error NothingOwed();
+    error SendFailed();
     error RenounceDisabled();
 
-    constructor(IERC20 token_, address owner_, uint256 minBet_, uint256 maxBetCap_) Ownable(owner_) {
-        if (address(token_) == address(0)) revert ZeroAddress();
-        token = token_;
+    constructor(address owner_, uint256 minBet_, uint256 maxBetCap_) Ownable(owner_) {
         _setLimits(minBet_, maxBetCap_);
+    }
+
+    /// @notice Plain ZNN sent to the contract tops up the bankroll.
+    receive() external payable {
+        emit Funded(msg.sender, msg.value);
     }
 
     // ---------------------------------------------------------------- views
@@ -69,12 +74,12 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
     }
 
     function bankroll() external view returns (uint256) {
-        return token.balanceOf(address(this));
+        return address(this).balance;
     }
 
     /// @notice Bankroll not reserved for open spins. Zero if reservations exceed the balance.
     function unlockedBalance() public view returns (uint256) {
-        uint256 bal = token.balanceOf(address(this));
+        uint256 bal = address(this).balance;
         return bal > locked ? bal - locked : 0;
     }
 
@@ -107,24 +112,24 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
 
     // ---------------------------------------------------------------- player
 
-    /// @notice Wager `amount` tokens (caller must have approved this contract). The result is
-    ///         decided by the hash of the next block; call `settle(id)` once it exists.
+    /// @notice Wager the ZNN sent with the call. The result is decided by the hash of the next
+    ///         block; call `settle(id)` once it exists.
     /// @return id The spin id to settle.
-    function placeBet(uint256 amount) external nonReentrant whenNotPaused returns (uint256 id) {
+    function placeBet() external payable nonReentrant whenNotPaused returns (uint256 id) {
+        uint256 amount = msg.value;
         if (amount < minBet) revert BetTooSmall();
-        if (amount > maxBet()) revert BetTooLarge();
-
-        uint256 before = token.balanceOf(address(this));
-        token.safeTransferFrom(msg.sender, address(this), amount);
-        uint256 credited = token.balanceOf(address(this)) - before;
-        if (credited < minBet) revert BetTooSmall();
-        if (credited > amount) revert BetTooLarge(); // never reserve more than was checked against maxBet
+        // msg.value is already part of address(this).balance, so exclude it from the bankroll check.
+        uint256 bal = address(this).balance - amount;
+        uint256 unlocked = bal > locked ? bal - locked : 0;
+        uint256 byBankroll = unlocked / MAX_MULTIPLIER;
+        uint256 limit = byBankroll < maxBetCap ? byBankroll : maxBetCap;
+        if (amount > limit) revert BetTooLarge();
 
         id = nextSpinId++;
         uint64 target = uint64(block.number + 1);
-        spins[id] = Spin({player: msg.sender, amount: uint96(credited), targetBlock: target, settled: false});
-        locked += credited * MAX_MULTIPLIER;
-        emit SpinPlaced(id, msg.sender, credited, target);
+        spins[id] = Spin({player: msg.sender, amount: uint96(amount), targetBlock: target, settled: false});
+        locked += amount * MAX_MULTIPLIER;
+        emit SpinPlaced(id, msg.sender, amount, target);
     }
 
     /// @notice Resolve spin `id` once its target block exists. Anyone may call; the payout always
@@ -150,7 +155,18 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
         (uint8 r0, uint8 r1, uint8 r2) = reelsFor(h, id);
         uint256 payout = (amount * multiplierX10(r0, r1, r2)) / 10;
         emit SpinSettled(id, player, amount, r0, r1, r2, payout);
-        if (payout > 0) token.safeTransfer(player, payout);
+        if (payout > 0) _pay(player, payout);
+    }
+
+    /// @notice Claim a payout that could not be delivered at settle time.
+    function withdrawPayout() external nonReentrant {
+        uint256 amount = owed[msg.sender];
+        if (amount == 0) revert NothingOwed();
+        owed[msg.sender] = 0;
+        locked -= amount;
+        emit PayoutClaimed(msg.sender, amount);
+        (bool ok, ) = msg.sender.call{value: amount}("");
+        if (!ok) revert SendFailed();
     }
 
     // ---------------------------------------------------------------- owner
@@ -165,16 +181,16 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
     }
 
     /// @notice Add to the bankroll. Anyone may top it up.
-    function fund(uint256 amount) external nonReentrant {
-        token.safeTransferFrom(msg.sender, address(this), amount);
-        emit Funded(msg.sender, amount);
+    function fund() external payable {
+        emit Funded(msg.sender, msg.value);
     }
 
     /// @notice Withdraw bankroll that is not reserved for open spins.
     function withdraw(uint256 amount) external onlyOwner nonReentrant {
         if (amount > unlockedBalance()) revert InsufficientUnlocked();
         emit Withdrawn(msg.sender, amount);
-        token.safeTransfer(msg.sender, amount);
+        (bool ok, ) = msg.sender.call{value: amount}("");
+        if (!ok) revert SendFailed();
     }
 
     function setLimits(uint256 minBet_, uint256 maxBetCap_) external onlyOwner {
@@ -182,6 +198,16 @@ contract SlotMachine is Ownable2Step, ReentrancyGuard, Pausable {
     }
 
     // ---------------------------------------------------------------- internal
+
+    /// @dev Push the payout; if the receiver rejects it, keep it reserved and let them pull it.
+    function _pay(address player, uint256 amount) internal {
+        (bool ok, ) = player.call{value: amount, gas: 30_000}("");
+        if (!ok) {
+            owed[player] += amount;
+            locked += amount;
+            emit PayoutDeferred(player, amount);
+        }
+    }
 
     function _setLimits(uint256 minBet_, uint256 maxBetCap_) internal {
         if (minBet_ == 0 || minBet_ > maxBetCap_ || maxBetCap_ > type(uint96).max) revert BadLimits();

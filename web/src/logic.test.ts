@@ -13,7 +13,7 @@ describe("parseBet", () => {
     for (const bad of ["", "abc", "1e3", "0.0000000000000000001", "0.09", "2.51", "-1"]) {
       const r = parseBet(bad, min, max);
       expect(r.ok, bad).toBe(false);
-      if (!r.ok) expect(r.message).toBe("Enter a bet between 0.1 and 2.5 wZNN");
+      if (!r.ok) expect(r.message).toBe("Enter a bet between 0.1 and 2.5 ZNN");
     }
   });
   it("explains when the machine cannot take any bet", () => {
@@ -25,7 +25,9 @@ describe("parseBet", () => {
 describe("checkFunds", () => {
   it("null when enough, otherwise says how much you have", () => {
     expect(checkFunds(E("1"), E("1"))).toBeNull();
-    expect(checkFunds(E("1"), E("0.25"))).toBe("You have 0.25 wZNN, wrap more first");
+    expect(checkFunds(E("1"), E("1.05"), E("0.05"))).toBeNull();
+    expect(checkFunds(E("1"), E("1.01"), E("0.05"))).toBe("Keep at least 0.05 ZNN for gas (you have 1.01)");
+    expect(checkFunds(E("1"), E("0.25"), E("0.05"))).toBe("You have 0.25 ZNN, use the faucet first");
   });
 });
 
@@ -88,7 +90,7 @@ describe("parseBet displayed max", () => {
   it("never displays a max above what is accepted", () => {
     const r = parseBet("9", min, max);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.message.endsWith("1.2517 wZNN")).toBe(true);
+    if (!r.ok) expect(r.message.endsWith("1.2517 ZNN")).toBe(true);
     expect(parseBet("1.2517", min, max).ok).toBe(true);
   });
 });
