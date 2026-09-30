@@ -3,7 +3,7 @@ import type { Address } from "viem";
 import { parseUnits } from "viem";
 import { ADDRESSES } from "./config";
 import { findOpenSpins, readState as readChainState, recentResults, unwrap, wrap, type Preview, type SettleOutcome, type State } from "./chain";
-import { requestFaucet } from "./faucet";
+import { faucetDrip, requestFaucet } from "./faucet";
 import { formatZnn, parseBet } from "./logic";
 import { Reels } from "./reels";
 import { resumeSpin, runSpin } from "./spin";
@@ -212,5 +212,6 @@ $("#unwrap").addEventListener("click", () => guard(async () => {
 }));
 
 onWalletChange(() => { refresh(); });
+faucetDrip().then((drip) => { if (drip) $("#faucet").textContent = `Get ${drip} devnet ZNN`; });
 await refresh();
 setInterval(() => { if (!busy) refresh(); }, 30_000);

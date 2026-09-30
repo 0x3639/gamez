@@ -57,11 +57,12 @@ export function checkFunds(bet: bigint, wznn: bigint): string | null {
   return wznn >= bet ? null : `You have ${formatZnn(wznn)} wZNN, wrap more first`;
 }
 
-export function faucetMessage(status: number, body: unknown): string {
+/** @param drip the faucet's current drip, already formatted (e.g. "500"); omitted when unknown */
+export function faucetMessage(status: number, body: unknown, drip?: string): string {
   const err = body && typeof body === "object" && "error" in body ? (body as { error?: unknown }).error : undefined;
   if (typeof err === "string" && err) return err;
   if (status === 0) return "Faucet unreachable";
-  if (status >= 200 && status < 300) return "Sent 5 devnet ZNN to your wallet";
+  if (status >= 200 && status < 300) return drip ? `Sent ${drip} devnet ZNN to your wallet` : "Sent devnet ZNN to your wallet";
   return `Faucet error (HTTP ${status})`;
 }
 

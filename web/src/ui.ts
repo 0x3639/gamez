@@ -42,7 +42,7 @@ export function layout(slotAddress: string): string {
         <div><dt>Bankroll</dt><dd id="bankroll">–</dd></div>
       </dl>
       <div class="row">
-        <button id="faucet" class="btn ghost" disabled>Get 5 devnet ZNN</button>
+        <button id="faucet" class="btn ghost" disabled>Get devnet ZNN</button>
       </div>
       <form id="wrapform" class="row">
         <input id="wrapamt" inputmode="decimal" placeholder="amount" aria-label="amount to wrap or unwrap" />

@@ -34,7 +34,8 @@ describe("faucetMessage", () => {
     expect(faucetMessage(429, { error: "cooldown: try again in 7s" })).toBe("cooldown: try again in 7s");
     expect(faucetMessage(500, {})).toBe("Faucet error (HTTP 500)");
     expect(faucetMessage(0, null)).toBe("Faucet unreachable");
-    expect(faucetMessage(200, { l2Balance: "1" })).toBe("Sent 5 devnet ZNN to your wallet");
+    expect(faucetMessage(200, { l2Balance: "1" }, "500")).toBe("Sent 500 devnet ZNN to your wallet");
+    expect(faucetMessage(200, { l2Balance: "1" })).toBe("Sent devnet ZNN to your wallet");
   });
 });
 
