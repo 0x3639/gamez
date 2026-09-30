@@ -13,11 +13,10 @@ Play at https://gamez.0x3639.com. Devnet only; play money.
 
 ## Devnet deployment
 
-- Contract: [`0xe865aF54d57ED62E317095D07F2927dA8e65Cc39`](https://devnet.zenon.foo/explorer/address/0xe865aF54d57ED62E317095D07F2927dA8e65Cc39) (verified, exact match). Paytable: three moon 40×, three chad 20×, other triple 8×, any pair 1.2×; return to player 92.6%.
-- Wrapped ZNN (wZNN) token: `0x91F5DDA8243e34697C99bE282e05bf48e35A0115`
-- Deploy block: 61988
-- Bankroll funded: 200 wZNN; max bet capped at 0.5 wZNN (`setLimits` can change it without a redeploy)
-- Retired: the first deployment at `0xC5Cc264FBA954Ce760030928589Ab4644BD57774` (pair paid 1.3×) is paused and drained; `scripts/retire.js` does that for any old deployment.
+- Contract: [`0xa3F9C5B7884526742574A9c5A5086Cf4c32981F0`](https://devnet.zenon.foo/explorer/address/0xa3F9C5B7884526742574A9c5A5086Cf4c32981F0) (verified, exact match). Bets and payouts are native ZNN. Paytable: three moon 40×, three chad 20×, other triple 8×, any pair 1.2×; return to player 92.6%.
+- Deploy block: 67537
+- Bankroll funded: 200 ZNN; max bet capped at 0.5 ZNN (`setLimits` can change it without a redeploy)
+- Retired: `0xC5Cc264FBA954Ce760030928589Ab4644BD57774` (wZNN bets, pair 1.3×) and `0xe865aF54d57ED62E317095D07F2927dA8e65Cc39` (wZNN bets, pair 1.2×) are paused and drained; `scripts/retire.js` does that for any old deployment (`UNWRAP=1` also unwraps wZNN back to ZNN).
 - Owner: the deployer key on the maintainer's machine; transfer with `transferOwnership(newOwner)` then `acceptOwnership()` from the new owner.
 
 ### Deploying your own
@@ -26,7 +25,7 @@ Play at https://gamez.0x3639.com. Devnet only; play money.
     FAUCET_ONLY=1 FAUCET_REQUESTS=12 npm run fund:devnet      # collect devnet ZNN from the faucet
     npm run deploy:devnet
     npm run verify:devnet
-    FAUCET_REQUESTS=0 BANKROLL=50 npm run fund:devnet         # wrap and fund the bankroll
+    FAUCET_REQUESTS=0 BANKROLL=200 npm run fund:devnet         # wrap and fund the bankroll
     npm run smoke:devnet                                      # one real bet and settle
     npm run settle-open:devnet                                # keeper: settle every settleable spin
 

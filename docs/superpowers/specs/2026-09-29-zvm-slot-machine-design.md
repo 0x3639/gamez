@@ -37,7 +37,7 @@ chain id.
 
 | Decision | Choice | Why |
 |---|---|---|
-| Bet token | Wrapped ZNN ERC-20 (the devnet WETH9) | User choice. Contract takes the token address in the constructor so it is token-agnostic. |
+| Bet token | Native ZNN (the ZVM gas coin) | Changed 2026-09-30 from wrapped ZNN: players found the wrap step confusing. `placeBet` is payable; payouts are ZNN sends with a pull fallback (`owed` / `withdrawPayout`) so a contract wallet that rejects ZNN cannot lock the bankroll. |
 | Randomness | Two-step: place bet, settle from a future block hash | User choice. Player cannot bias or withhold; only the block producer could, acceptable on devnet. |
 | Deployer | Fresh key generated locally, funded from the faucet | No user key handling. Owner can be transferred later. |
 | Hosting | GitHub Pages from the existing empty repo `0x3639/gamez`, custom domain gamez.0x3639.com | User choice. Static site, CNAME + Pages workflow. |
@@ -153,7 +153,9 @@ fair spin.
 
 | Threat | Mitigation |
 |---|---|
-| Reentrancy through the token | `nonReentrant` on `placeBet`, `settle`, `withdraw`, `fund`; checks-effects-interactions everywhere; wZNN is a plain WETH9 with no hooks. |
+| Reentrancy through a player contract's `receive` | `nonReentrant` on `placeBet`, `settle`, `withdrawPayout`, `withdraw`; every ZNN send is the last statement after state changes. `fund`/`receive` are not guarded: they only add value and read nothing after. |
+| Player contract rejects or burns gas on the payout | Pushed payouts carry a 30k gas stipend; on failure the amount goes to `owed[player]` (kept in `locked`) and only that player can `withdrawPayout`. A rejecting player ties up only their own winnings. |
+| Forced ZNN (selfdestruct, plain send) | Counts as bankroll; can only increase `unlockedBalance`. |
 | Settle-block shopping: settler waits for a settle block whose data yields a win | Seed = `keccak256(blockhash(targetBlock), id)` only. The outcome is fixed once the target block exists; when you settle cannot change it. |
 | Free option: see a losing result, then avoid the loss | Bet is taken at placement. Not settling forfeits it. Expired spins (target block older than 256) are forfeited, never refunded. |
 | Same-block settle: `blockhash(block.number)` is 0 | `settle` requires `block.number > targetBlock`, so 0 can only mean genuine expiry. |
@@ -161,7 +163,7 @@ fair spin.
 | Many bets in one block sharing a target block | Each spin id is in the seed, so outcomes differ; each reserves its own 40× liability. |
 | Bankroll insolvency / owner rug of live bets | `locked` reserves 40× every open bet at placement; `withdraw` and `maxBet` only see unreserved balance; owner cannot touch reserved funds or any spin. |
 | Whale drain via variance | `maxBetCap` absolute ceiling plus the bankroll-derived cap (bankroll/40). |
-| Non-standard token behaviour | `SafeERC20` handles missing return values; credited amount measured by balance delta. |
+| Bet value counted as its own bankroll | `placeBet` checks the limit against `balance − msg.value`, so a large bet cannot raise the cap that admits it. |
 | Arithmetic | Solidity 0.8 checked math; `amount` bounded to `uint96`; multipliers are small constants. |
 | Ownership mistakes | `Ownable2Step` accept flow; `renounceOwnership` overridden to revert. |
 | Capacity hold: one max bet reserves the whole unreserved bankroll and an attacker delays settling to keep the machine "out of bankroll" | Anyone may settle any spin; the owner runs `npm run settle-open:devnet` (cron-able) to settle every settleable spin; keep the bankroll at least 3 × 40 × the intended max bet. |

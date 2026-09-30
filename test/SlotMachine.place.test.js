@@ -42,9 +42,10 @@ describe("SlotMachine.placeBet", () => {
   });
 
   it("the sent value cannot inflate its own limit", async () => {
-    // bankroll 100 -> limit 2.5; a 5 ZNN bet would pass if msg.value were counted as bankroll (105/40 = 2.625... no: 100/40)
+    // bankroll 100 -> limit 2.5. If msg.value were (wrongly) counted as bankroll, a 2.55 bet would pass:
+    // (100 + 2.55) / 40 = 2.56 >= 2.55. With the value excluded it must be rejected.
     const { alice, slot } = await setup();
-    await expect(slot.connect(alice).placeBet({ value: E(2.6) })).to.be.revertedWithCustomError(slot, "BetTooLarge");
+    await expect(slot.connect(alice).placeBet({ value: E(2.55) })).to.be.revertedWithCustomError(slot, "BetTooLarge");
   });
 
   it("reservations shrink maxBet until settled", async () => {

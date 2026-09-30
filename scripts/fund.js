@@ -32,7 +32,7 @@ async function main() {
   const slot = await ethers.getContractAt("SlotMachine", d.address, deployer);
   console.log(`funding ${ethers.formatEther(bankroll)} ZNN`);
   await (await slot.fund({ value: bankroll })).wait(1);
-  console.log(`bankroll ${ethers.formatEther(await slot.bankroll())} wZNN, maxBet ${ethers.formatEther(await slot.maxBet())} wZNN`);
+  console.log(`bankroll ${ethers.formatEther(await slot.bankroll())} ZNN, maxBet ${ethers.formatEther(await slot.maxBet())} ZNN`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

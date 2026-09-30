@@ -104,7 +104,7 @@ const CONTRACT_ERRORS: [string, string][] = [
   ["EnforcedPause", "The machine is paused"],
   ["InsufficientUnlocked", "Not enough unreserved bankroll"],
   ["NothingOwed", "Nothing to claim"],
-  ["SendFailed", "Your wallet refused the payment; claim it from a wallet that accepts ZNN"],
+  ["SendFailed", "Your wallet refused the payment; make it accept ZNN, then claim again"],
 ];
 
 type ErrLike = { name?: string; code?: number; message?: string; shortMessage?: string; details?: string; cause?: unknown };

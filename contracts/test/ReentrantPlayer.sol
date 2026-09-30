@@ -11,6 +11,7 @@ interface ISlotR {
 contract ReentrantPlayer {
     ISlotR public slot;
     bytes public data;
+    uint256 public reentryValue;
     bool public armed;
     uint256 public attempts;
     bool public lastOk;
@@ -18,7 +19,8 @@ contract ReentrantPlayer {
 
     constructor(ISlotR slot_) { slot = slot_; }
 
-    function arm(bytes calldata data_) external { data = data_; armed = true; }
+    function arm(bytes calldata data_) external { data = data_; reentryValue = 0; armed = true; }
+    function armWithValue(bytes calldata data_, uint256 value_) external { data = data_; reentryValue = value_; armed = true; }
     function disarm() external { armed = false; }
     function bet(uint256 amount) external returns (uint256) { return slot.placeBet{value: amount}(); }
     function settle(uint256 id) external { slot.settle(id); }
@@ -29,7 +31,7 @@ contract ReentrantPlayer {
         if (armed) {
             armed = false;
             attempts += 1;
-            (bool ok, bytes memory ret) = address(slot).call{value: 0}(data);
+            (bool ok, bytes memory ret) = address(slot).call{value: reentryValue}(data);
             lastOk = ok;
             lastData = ret;
             armed = true;

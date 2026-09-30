@@ -194,19 +194,35 @@ describe("SlotMachine.settle", () => {
     expect((await slot.spins(idB)).settled).to.equal(false);
     expect(await slot.owed(playerAddr)).to.equal(0n);
 
-    // Re-enter placeBet from inside the pull payout: the player holds ZNN, so without the guard the inner bet would succeed.
-    // Make spin B pay to the player (deferred again), then claim with the hook armed for placeBet.
+    // Re-enter placeBet (with a real 0.1 ZNN stake) from inside the pull payout: the player holds ZNN, so
+    // without the guard the inner bet would be placed. Find a paying spin C so a payout is owed again.
     await player.disarm();
     await slot.connect(owner).settle(idB);
-    if ((await slot.owed(playerAddr)) > 0n) {
-      await player.arm(slot.interface.encodeFunctionData("placeBet", []));
-      const before = await slot.nextSpinId();
-      await expect(player.claim()).to.emit(slot, "PayoutClaimed");
-      expect(await slot.nextSpinId()).to.equal(before);
-      expect(await player.attempts()).to.equal(2n);
-      expect(await player.lastOk()).to.equal(false);
-      expect(await player.lastData()).to.equal(guardSelector);
+    let idC, targetC;
+    for (let i = 0; i < 60; i++) {
+      const rc = await (await player.bet(E(0.1))).wait();
+      const ev = rc.logs.map((l) => { try { return slot.interface.parseLog(l); } catch { return null; } }).find((x) => x && x.name === "SpinPlaced");
+      idC = ev.args.id; targetC = ev.args.targetBlock;
+      await mine(1);
+      const blk = await ethers.provider.getBlock(Number(targetC));
+      const [a, b, c] = await slot.reelsFor(blk.hash, idC);
+      if ((await slot.multiplierX10(a, b, c)) > 0n) break;
+      await slot.settle(idC);
     }
+    await player.armWithValue(slot.interface.encodeFunctionData("placeBet", []), E(0.1));
+    const before = await slot.nextSpinId();
+    const rcC = await (await slot.connect(owner).settle(idC)).wait();
+    const deferredC = rcC.logs.some((l) => { try { return slot.interface.parseLog(l)?.name === "PayoutDeferred"; } catch { return false; } });
+    if (deferredC) {
+      // The armed hook did not fit in the 30k push stipend; the pull path forwards full gas and the hook fires there.
+      expect(await player.attempts()).to.equal(1n);
+      await expect(player.claim()).to.emit(slot, "PayoutClaimed");
+    }
+    // Either way the hook has now run once more and only the guard stopped the inner placeBet.
+    expect(await slot.nextSpinId()).to.equal(before); // no spin created by the re-entry
+    expect(await player.attempts()).to.equal(2n);
+    expect(await player.lastOk()).to.equal(false);
+    expect(await player.lastData()).to.equal(guardSelector);
   });
 
   it("defers the payout when the player contract rejects ZNN, and lets it be claimed later", async () => {

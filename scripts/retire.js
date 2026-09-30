@@ -19,7 +19,7 @@ async function main() {
   const unlocked = await slot.unlockedBalance();
   const locked = await slot.locked();
   if (unlocked > 0n) { await (await slot.withdraw(unlocked)).wait(1); }
-  console.log(`withdrew ${ethers.formatEther(unlocked)} wZNN (still reserved for open spins: ${ethers.formatEther(locked)})`);
+  console.log(`withdrew ${ethers.formatEther(unlocked)} (still reserved for open spins: ${ethers.formatEther(locked)})`);
   console.log(`${DEVNET.explorer}/address/${address}`);
   if (process.env.UNWRAP === "1") {
     const weth = new ethers.Contract(DEVNET.wrappedZnn, WETH_ABI, owner);

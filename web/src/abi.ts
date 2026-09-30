@@ -19,6 +19,8 @@ export const SLOT_ABI = [
     { name: "amount", type: "uint256", indexed: false }, { name: "r0", type: "uint8", indexed: false },
     { name: "r1", type: "uint8", indexed: false }, { name: "r2", type: "uint8", indexed: false },
     { name: "payout", type: "uint256", indexed: false }] },
+  { type: "event", name: "PayoutDeferred", inputs: [
+    { name: "player", type: "address", indexed: true }, { name: "amount", type: "uint256", indexed: false }] },
   { type: "event", name: "SpinExpired", inputs: [
     { name: "id", type: "uint256", indexed: true }, { name: "player", type: "address", indexed: true },
     { name: "amount", type: "uint256", indexed: false }] },
@@ -37,6 +39,5 @@ export const SLOT_ABI = [
   { type: "error", name: "OwnableUnauthorizedAccount", inputs: [{ name: "account", type: "address" }] },
   { type: "error", name: "OwnableInvalidOwner", inputs: [{ name: "owner", type: "address" }] },
   { type: "error", name: "ReentrancyGuardReentrantCall", inputs: [] },
-  { type: "error", name: "SafeERC20FailedOperation", inputs: [{ name: "token", type: "address" }] },
 ] as const;
 

@@ -59,7 +59,7 @@ export async function placeBet(amount: bigint): Promise<{ id: bigint; targetBloc
 }
 
 export type SettleOutcome =
-  | { kind: "settled"; reels: [number, number, number]; payout: bigint; txHash: Hash }
+  | { kind: "settled"; reels: [number, number, number]; payout: bigint; deferred: boolean; txHash: Hash }
   | { kind: "expired"; txHash: Hash };
 
 export async function settle(id: bigint): Promise<SettleOutcome> {
@@ -70,7 +70,8 @@ export async function settle(id: bigint): Promise<SettleOutcome> {
   const rc = await publicClient.waitForTransactionReceipt({ hash });
   if (rc.status !== "success") throw new Error("Settle transaction reverted on chain");
   const [s] = parseEventLogs({ abi: SLOT_ABI, eventName: "SpinSettled", logs: rc.logs });
-  if (s) return { kind: "settled", reels: [s.args.r0, s.args.r1, s.args.r2], payout: s.args.payout, txHash: hash };
+  const deferred = parseEventLogs({ abi: SLOT_ABI, eventName: "PayoutDeferred", logs: rc.logs }).length > 0;
+  if (s) return { kind: "settled", reels: [s.args.r0, s.args.r1, s.args.r2], payout: s.args.payout, deferred, txHash: hash };
   return { kind: "expired", txHash: hash };
 }
 

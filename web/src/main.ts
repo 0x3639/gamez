@@ -1,6 +1,5 @@
 import "./style.css";
 import type { Address } from "viem";
-import { parseUnits } from "viem";
 import { ADDRESSES } from "./config";
 import { claimOwed, findOpenSpins, readState as readChainState, recentResults, type Preview, type SettleOutcome, type State } from "./chain";
 import { faucetDrip, requestFaucet } from "./faucet";
@@ -139,7 +138,7 @@ const hooks = {
     if (o.payout > 0n) {
       reels.markWin();
       $("#result").innerHTML = `<strong>You win ${formatZnn(o.payout)} ZNN</strong> <a href="${txLink(o.txHash)}" target="_blank" rel="noopener">tx ↗</a>`;
-      setStatus("Paid out", "ok");
+      setStatus(o.deferred ? "Your wallet could not receive the payout; use Claim in Your funds" : "Paid out", o.deferred ? "error" : "ok");
     } else {
       $("#result").innerHTML = `No win this time. <a href="${txLink(o.txHash)}" target="_blank" rel="noopener">tx ↗</a>`;
       setStatus("");
